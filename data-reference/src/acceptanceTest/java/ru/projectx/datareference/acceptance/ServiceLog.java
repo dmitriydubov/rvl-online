@@ -68,6 +68,21 @@ public class ServiceLog {
                 .isEmpty();
     }
 
+    @Тогда("номер полиса {string} не попал ни в ответ, ни в журнал Дата-референса")
+    public void policyNumberNotInResponseNorJournal(String number) {
+        assertThat(contracts.lastResponse().body().toString())
+                .as("тело ответа")
+                .doesNotContain(number);
+        policyNumberNotInJournal(number);
+    }
+
+    @Тогда("номер полиса {string} не попал в журнал Дата-референса")
+    public void policyNumberNotInJournal(String number) {
+        assertThat(journal.mentioning(number))
+                .as("записи журнала с номером полиса")
+                .isEmpty();
+    }
+
     private void entryMentioning(Level level, String text) {
         assertThat(journal.events())
                 .as("записи уровня %s с «%s» в журнале", level, text)

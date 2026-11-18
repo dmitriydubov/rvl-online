@@ -6,6 +6,7 @@ import java.time.Instant;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import ru.projectx.datareference.config.ImportProperties;
+import ru.projectx.datareference.entity.inbound.OneCStream;
 import ru.projectx.datareference.repository.database.DatabaseClockRepository;
 import ru.projectx.datareference.repository.inbound.InboundMessageRepository;
 import ru.projectx.datareference.repository.inbound.QuarantineRepository;
@@ -43,12 +44,18 @@ public class InboundBacklogReads {
                 inboundMessages.countUnfinishedByStreamAndStatus().stream()
                         .map(row -> statusCount(row, instanceClockAhead))
                         .toList(),
-                inboundMessages.countTransfersBufferedBefore(databaseNow.minus(properties.stuckTransferThreshold())),
+                stuckTransfers(databaseNow.minus(properties.stuckTransferThreshold())),
                 new InboundBacklog.Overdue(
                         inboundMessages.countPayloadsToForgetReceivedBefore(databaseNow.minus(properties.payloadTtl())),
                         quarantine.countBodiesReceivedBefore(databaseNow.minus(properties.quarantineTtl())),
                         expiredPolicies.countAt(now)),
                 now);
+    }
+
+    private InboundBacklog.StuckTransfers stuckTransfers(Instant bufferedBefore) {
+        return new InboundBacklog.StuckTransfers(
+                inboundMessages.countTransfersBufferedBefore(OneCStream.PRICE_LISTS, bufferedBefore),
+                inboundMessages.countTransfersBufferedBefore(OneCStream.INSURED_ASSOCIATIONS, bufferedBefore));
     }
 
     private static InboundBacklog.StatusCount statusCount(StatusBacklog row, Duration instanceClockAhead) {

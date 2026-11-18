@@ -28,9 +28,10 @@ class OneCQueueEndpointsTest {
     private static final OneCQueueProperties QUEUES = new OneCQueueProperties(
             "q-policies", "q-insurance-contracts", "q-contragents", "q-mkb10", "q-lpu-contracts",
             "q-programs", "q-appeal-types", "q-lpu-contacts", "q-price-lists", "q-price-lists-final",
-            "q-contragent-services");
+            "q-contragent-services", "q-insured-associations",
+            "q-insured-associations-final");
 
-    private static final int QUEUE_COUNT = 11;
+    private static final int QUEUE_COUNT = 13;
 
     @Mock
     private OneCQueueListener listener;
@@ -51,7 +52,9 @@ class OneCQueueEndpointsTest {
                 Map.entry("q-lpu-contacts", OneCStream.LPU_CONTACTS),
                 Map.entry("q-price-lists", OneCStream.PRICE_LISTS),
                 Map.entry("q-price-lists-final", OneCStream.PRICE_LISTS),
-                Map.entry("q-contragent-services", OneCStream.CONTRAGENT_SERVICES));
+                Map.entry("q-contragent-services", OneCStream.CONTRAGENT_SERVICES),
+                Map.entry("q-insured-associations", OneCStream.INSURED_ASSOCIATIONS),
+                Map.entry("q-insured-associations-final", OneCStream.INSURED_ASSOCIATIONS));
 
         for (SimpleRabbitListenerEndpoint endpoint : registeredEndpoints()) {
             String queue = onlyQueueOf(endpoint);
@@ -72,7 +75,8 @@ class OneCQueueEndpointsTest {
                 .containsExactlyInAnyOrder(
                         "q-policies", "q-insurance-contracts", "q-contragents", "q-mkb10", "q-lpu-contracts",
                         "q-programs", "q-appeal-types", "q-lpu-contacts", "q-price-lists",
-                        "q-price-lists-final", "q-contragent-services");
+                        "q-price-lists-final", "q-contragent-services", "q-insured-associations",
+                        "q-insured-associations-final");
         assertThat(endpoints).extracting(SimpleRabbitListenerEndpoint::getId).doesNotHaveDuplicates()
                 .allSatisfy(id -> assertThat(id).isNotBlank());
     }

@@ -1,5 +1,6 @@
 package ru.projectx.datareference.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -27,7 +28,13 @@ public record ErrorResponse(Body error) {
     public record Violation(String field, String reason) implements Detail {
     }
 
-    public record PolicyCandidate(UUID policyId) implements Detail {
+    public record PolicyCandidate(
+            UUID policyId, @JsonInclude(JsonInclude.Include.NON_NULL) @Nullable UUID contractExternalId)
+            implements Detail {
+
+        public PolicyCandidate(UUID policyId) {
+            this(policyId, null);
+        }
     }
 
     public record LpuContractCandidate(UUID lpuContractId) implements Detail {

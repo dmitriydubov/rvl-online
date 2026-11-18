@@ -178,7 +178,7 @@ class AgedInboundMessagesQueryTest {
         buffer(OLDER_TRANSFER, Duration.ofHours(5));
         buffer(FRESH_TRANSFER, Duration.ofMinutes(30));
 
-        assertThat(agedMessages.transfersBufferedLongerThan(Duration.ofHours(1), 10))
+        assertThat(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, Duration.ofHours(1), 10))
                 .extracting(BufferedTransfer::getCorrelationId, BufferedTransfer::getFirstPartReceivedAt,
                         BufferedTransfer::getParts)
                 .containsExactly(
@@ -186,7 +186,7 @@ class AgedInboundMessagesQueryTest {
                                 databaseNow.minus(Duration.ofHours(5)), 1L),
                         tuple(OLD_TRANSFER,
                                 databaseNow.minus(Duration.ofHours(3)), 2L));
-        assertThat(agedMessages.transfersBufferedLongerThan(Duration.ofHours(1), 1))
+        assertThat(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, Duration.ofHours(1), 1))
                 .extracting(BufferedTransfer::getCorrelationId).containsExactly(OLDER_TRANSFER);
     }
 
@@ -196,7 +196,15 @@ class AgedInboundMessagesQueryTest {
         testJdbc.update("update inbound_message set status = 'PROCESSED', correlation_id = ? where message_id = ?",
                 OLD_TRANSFER, processed);
 
-        assertThat(agedMessages.transfersBufferedLongerThan(Duration.ofHours(1), 10)).isEmpty();
+        assertThat(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, Duration.ofHours(1), 10)).isEmpty();
+    }
+
+    @Test
+    void transfersBufferedLongerThan_ignoresTransfersOfAnotherStream() {
+        buffer(OLD_TRANSFER, Duration.ofHours(3));
+
+        assertThat(agedMessages.transfersBufferedLongerThan(OneCStream.INSURED_ASSOCIATIONS, Duration.ofHours(1), 10))
+                .isEmpty();
     }
 
     @Test

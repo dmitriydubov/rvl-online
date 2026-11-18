@@ -88,7 +88,7 @@ class InboundBacklogMetricsTest {
         metrics.withdraw();
         when(reads.read()).thenReturn(new InboundBacklog(List.of(
                 new InboundBacklog.StatusCount(OneCStream.POLICIES, InboundStatus.FAILED, 3, STARTED)),
-                0, new InboundBacklog.Overdue(0, 0, 0), REFRESHED));
+                new InboundBacklog.StuckTransfers(0, 0), new InboundBacklog.Overdue(0, 0, 0), REFRESHED));
 
         metrics.refresh();
         metrics.refresh();
@@ -125,7 +125,7 @@ class InboundBacklogMetricsTest {
         SimpleMeterRegistry later = new SimpleMeterRegistry();
         when(reads.read()).thenReturn(new InboundBacklog(List.of(
                 new InboundBacklog.StatusCount(OneCStream.POLICIES, InboundStatus.FAILED, 7, STARTED)),
-                0, new InboundBacklog.Overdue(0, 0, 0), REFRESHED));
+                new InboundBacklog.StuckTransfers(0, 0), new InboundBacklog.Overdue(0, 0, 0), REFRESHED));
 
         unbound.refresh();
         unbound.bindTo(later);
@@ -146,7 +146,7 @@ class InboundBacklogMetricsTest {
         when(reads.read()).thenReturn(new InboundBacklog(List.of(
                 new InboundBacklog.StatusCount(OneCStream.POLICIES, InboundStatus.FAILED, 3, STARTED),
                 new InboundBacklog.StatusCount(OneCStream.PRICE_LISTS, InboundStatus.BUFFERED, 4, STARTED)),
-                2, new InboundBacklog.Overdue(11, 5, 6), REFRESHED));
+                new InboundBacklog.StuckTransfers(2, 4), new InboundBacklog.Overdue(11, 5, 6), REFRESHED));
 
         metrics.refresh();
 
@@ -154,6 +154,7 @@ class InboundBacklogMetricsTest {
         assertThat(messages(OneCStream.PRICE_LISTS, InboundStatus.BUFFERED)).isEqualTo(4.0);
         assertThat(messages(OneCStream.POLICIES, InboundStatus.NEW)).isZero();
         assertThat(gauge(InboundBacklogMetrics.STUCK_TRANSFERS).value()).isEqualTo(2.0);
+        assertThat(gauge(InboundBacklogMetrics.STUCK_ASSOCIATION_TRANSFERS).value()).isEqualTo(4.0);
         assertThat(gauge(InboundBacklogMetrics.OVERDUE_PAYLOADS).value()).isEqualTo(11.0);
         assertThat(gauge(InboundBacklogMetrics.OVERDUE_QUARANTINE_BODIES).value()).isEqualTo(5.0);
         assertThat(gauge(InboundBacklogMetrics.OVERDUE_POLICIES).value()).isEqualTo(6.0);
@@ -163,7 +164,7 @@ class InboundBacklogMetricsTest {
     void oldestPendingAge_growsWithTheClock() {
         when(reads.read()).thenReturn(new InboundBacklog(List.of(
                 new InboundBacklog.StatusCount(OneCStream.MKB10, InboundStatus.RETRY, 1, STARTED)),
-                0, new InboundBacklog.Overdue(0, 0, 0), REFRESHED));
+                new InboundBacklog.StuckTransfers(0, 0), new InboundBacklog.Overdue(0, 0, 0), REFRESHED));
         metrics.refresh();
 
         clock.moveTo(STARTED.plus(Duration.ofMinutes(5)).plusMillis(500));
@@ -186,7 +187,7 @@ class InboundBacklogMetricsTest {
     void failedRefresh_keepsPreviousSnapshotAndLogsFailureType() {
         when(reads.read()).thenReturn(new InboundBacklog(List.of(
                 new InboundBacklog.StatusCount(OneCStream.MKB10, InboundStatus.NEW, 6, STARTED)),
-                0, new InboundBacklog.Overdue(0, 0, 0), REFRESHED));
+                new InboundBacklog.StuckTransfers(0, 0), new InboundBacklog.Overdue(0, 0, 0), REFRESHED));
         metrics.refresh();
         when(reads.read()).thenThrow(new DataAccessResourceFailureException("полис Иванова И.И."));
 

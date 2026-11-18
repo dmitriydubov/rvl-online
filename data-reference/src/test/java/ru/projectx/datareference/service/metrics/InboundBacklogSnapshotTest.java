@@ -50,7 +50,10 @@ class InboundBacklogSnapshotTest {
                 row(OneCStream.MKB10, InboundStatus.FAILED, 1, DATABASE_NOW.minus(Duration.ofDays(2))));
         when(databaseClock.currentMoment()).thenReturn(DATABASE_NOW);
         when(repository.countUnfinishedByStreamAndStatus()).thenReturn(rows);
-        when(repository.countTransfersBufferedBefore(DATABASE_NOW.minus(STUCK_THRESHOLD))).thenReturn(3L);
+        when(repository.countTransfersBufferedBefore(OneCStream.PRICE_LISTS, DATABASE_NOW.minus(STUCK_THRESHOLD)))
+                .thenReturn(3L);
+        when(repository.countTransfersBufferedBefore(OneCStream.INSURED_ASSOCIATIONS, DATABASE_NOW.minus(STUCK_THRESHOLD)))
+                .thenReturn(7L);
         when(repository.countPayloadsToForgetReceivedBefore(DATABASE_NOW.minus(PAYLOAD_TTL))).thenReturn(4L);
         when(quarantine.countBodiesReceivedBefore(DATABASE_NOW.minus(QUARANTINE_TTL))).thenReturn(5L);
         when(expiredPolicies.countAt(NOW)).thenReturn(6L);
@@ -62,7 +65,7 @@ class InboundBacklogSnapshotTest {
                                 NOW.minus(Duration.ofMinutes(40))),
                         new InboundBacklog.StatusCount(OneCStream.MKB10, InboundStatus.FAILED, 1,
                                 NOW.minus(Duration.ofDays(2)))),
-                3, new InboundBacklog.Overdue(4, 5, 6), NOW));
+                new InboundBacklog.StuckTransfers(3, 7), new InboundBacklog.Overdue(4, 5, 6), NOW));
     }
 
     private InboundBacklogReads reads() {

@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 import ru.projectx.datareference.config.ImportProperties;
+import ru.projectx.datareference.entity.inbound.OneCStream;
 import ru.projectx.datareference.repository.database.DatabaseClockRepository;
 import ru.projectx.datareference.repository.inbound.BufferedTransfer;
 import ru.projectx.datareference.service.database.SqlStates;
@@ -19,6 +20,12 @@ import ru.projectx.datareference.service.onec.SupersededTransferClosure;
 public class StuckTransferAlert {
 
     private static final Logger log = LoggerFactory.getLogger(StuckTransferAlert.class);
+
+    private static final List<StuckTransferNotice> NOTICES = List.of(
+            new StuckTransferNotice(OneCStream.PRICE_LISTS, "передачи прайсов",
+                    "Прайс по их услугам остался прежним"),
+            new StuckTransferNotice(OneCStream.INSURED_ASSOCIATIONS, "передачи связей застрахованных",
+                    "Связи по их отбору остались прежними"));
 
     private final AgedInboundMessages agedMessages;
     private final SupersededTransferClosure closure;
@@ -36,10 +43,13 @@ public class StuckTransferAlert {
 
     public void reportStuckTransfers() {
         Duration threshold = properties.stuckTransferThreshold();
-        for (BufferedTransfer transfer : agedMessages.allTransfersBufferedLongerThan(threshold)) {
+        for (BufferedTransfer transfer : agedMessages.allTransfersBufferedLongerThan(OneCStream.PRICE_LISTS, threshold)) {
             closeIfSuperseded(transfer.getCorrelationId());
         }
-        report(agedMessages.transfersBufferedLongerThan(threshold, properties.stuckTransferReportLimit()));
+        for (StuckTransferNotice notice : NOTICES) {
+            report(notice, agedMessages.transfersBufferedLongerThan(notice.stream(), threshold,
+                    properties.stuckTransferReportLimit()));
+        }
     }
 
     private void closeIfSuperseded(UUID cid) {
@@ -53,7 +63,7 @@ public class StuckTransferAlert {
         }
     }
 
-    private void report(List<BufferedTransfer> stuck) {
+    private void report(StuckTransferNotice notice, List<BufferedTransfer> stuck) {
         if (stuck.isEmpty()) {
             return;
         }
@@ -61,9 +71,9 @@ public class StuckTransferAlert {
         String transfers = stuck.stream()
                 .map(transfer -> describe(transfer, now))
                 .collect(Collectors.joining(", "));
-        log.warn("передачи прайсов не собрались за {}: {}. Прайс по их услугам остался прежним; "
-                        + "недостающие сообщения может прислать только источник{}",
-                properties.stuckTransferThreshold(), transfers, limitNote(stuck.size()));
+        log.warn("{} не собрались за {}: {}. {}; недостающие сообщения может прислать только источник{}",
+                notice.transfers(), properties.stuckTransferThreshold(), transfers, notice.consequence(),
+                limitNote(stuck.size()));
     }
 
     private static String describe(BufferedTransfer transfer, Instant now) {
@@ -74,5 +84,8 @@ public class StuckTransferAlert {
     private String limitNote(int reported) {
         int limit = properties.stuckTransferReportLimit();
         return reported < limit ? "" : ". Названы %d самых давних, зависших может быть больше".formatted(limit);
+    }
+
+    private record StuckTransferNotice(OneCStream stream, String transfers, String consequence) {
     }
 }

@@ -24,6 +24,7 @@ class MissingMapperTest {
         InboundMessageService inboundMessageService = mock(InboundMessageService.class);
         ReferenceImportService importService = new ReferenceImportService(
                 List.of(), List.of(), inboundMessageService, mock(SupersededParentWaits.class),
+                mock(ParentArrivals.class),
                 JsonMapper.builder().build(),
                 mock(ApplicationEventPublisher.class), mock(LeadershipFence.class));
 

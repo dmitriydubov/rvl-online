@@ -17,7 +17,9 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import ru.projectx.datareference.controller.FailingController;
 import ru.projectx.datareference.controller.StandaloneMvc;
 import ru.projectx.datareference.controller.request.RequestIdFilter;
+import ru.projectx.datareference.exception.AmbiguousPolicyNumberException;
 import ru.projectx.datareference.exception.AmbiguousPriceException;
+import ru.projectx.datareference.exception.PolicyNumberCandidate;
 import ru.projectx.datareference.exception.AmbiguousReferenceException;
 import ru.projectx.datareference.exception.IncompleteReferenceException;
 import ru.projectx.datareference.exception.PriceNotCoveredException;
@@ -91,6 +93,26 @@ class ReferenceErrorAdviceTest {
     }
 
     @Test
+    void ambiguousPolicyNumber_isConflict_listingPoliciesWithTheirContractGuids_andLoggedAsWarning(
+            CapturedOutput output) throws UnsupportedEncodingException {
+
+        controller.failWith(AmbiguousPolicyNumberException.of(List.of(
+                new PolicyNumberCandidate(FIRST, SECOND), new PolicyNumberCandidate(SECOND, FIRST))));
+
+        MvcTestResult result = request();
+
+        assertThat(result).hasStatus(409);
+        assertThat(body(result)).isEqualTo("{\"error\":{\"code\":\"AMBIGUOUS_POLICY\","
+                + "\"message\":\"по номеру полиса найдено больше одной записи\","
+                + "\"details\":[{\"policyId\":\"" + FIRST + "\",\"contractExternalId\":\"" + SECOND + "\"},"
+                + "{\"policyId\":\"" + SECOND + "\",\"contractExternalId\":\"" + FIRST + "\"}],"
+                + "\"requestId\":\"" + REQUEST_ID + "\"}}");
+        assertThat(output).contains("WARN", "по номеру полиса найдено несколько полисов: AMBIGUOUS_POLICY",
+                "PolicyCandidate[policyId=" + FIRST + ", contractExternalId=" + SECOND + "]",
+                "request_id=" + REQUEST_ID).doesNotContain("ERROR");
+    }
+
+    @Test
     void incompleteReference_isUnprocessable_withSameBodyAsBefore() throws UnsupportedEncodingException {
         controller.failWith(IncompleteReferenceException.noActivePriceContract(FIRST));
 
@@ -109,7 +131,8 @@ class ReferenceErrorAdviceTest {
         request();
 
         assertThat(output).contains("WARN", "неоднозначные данные 1С: AMBIGUOUS_POLICY",
-                "PolicyCandidate[policyId=" + FIRST + "]", "request_id=" + REQUEST_ID).doesNotContain("ERROR");
+                "PolicyCandidate[policyId=" + FIRST + ", contractExternalId=null]", "request_id=" + REQUEST_ID)
+                .doesNotContain("ERROR");
     }
 
     @Test

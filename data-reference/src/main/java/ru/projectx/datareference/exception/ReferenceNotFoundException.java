@@ -20,6 +20,10 @@ public final class ReferenceNotFoundException extends RuntimeException {
         this.code = code;
     }
 
+    public static ReferenceNotFoundException policyWithRequestedNumber() {
+        return new ReferenceNotFoundException(POLICY_NOT_FOUND, "полис с таким номером не найден");
+    }
+
     public String code() {
         return code;
     }

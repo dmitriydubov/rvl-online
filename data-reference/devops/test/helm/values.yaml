@@ -71,3 +71,4 @@ ingress:
     - internal/v1/lpu
     - internal/v1/insurance-contracts
     - internal/v1/policies
+    - internal/v1/mkb10

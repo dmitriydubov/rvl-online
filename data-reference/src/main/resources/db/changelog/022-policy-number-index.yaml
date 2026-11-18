@@ -1,0 +1,22 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 022-policy-number-index
+      author: rvl-online
+      comment: >
+        Под поиск полиса по номеру среди всех полисов, без договора: кабинет застрахованного знает только номер.
+        Сравнение точное, поэтому обычный индекс btree по number; триграммный индекс поиска полисов построен по
+        lower(number) и только по неархивным полисам и для точного сравнения не годится. Индекс строится без
+        CONCURRENTLY: на время построения запись в policies ждёт, чтение не блокируется. Разбор сообщений 1С уходит
+        на повтор, проход стирания персональных данных прерывается и доделывается следующим проходом. Обычное
+        построение откатывается вместе с транзакцией миграции.
+      changes:
+        - createIndex:
+            tableName: policies
+            indexName: idx_policies_number
+            columns:
+              - column: { name: number }
+      rollback:
+        - dropIndex:
+            tableName: policies
+            indexName: idx_policies_number

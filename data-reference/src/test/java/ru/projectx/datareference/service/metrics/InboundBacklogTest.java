@@ -21,7 +21,7 @@ class InboundBacklogTest {
             new InboundBacklog.StatusCount(OneCStream.POLICIES, InboundStatus.FAILED, 3, Instant.EPOCH),
             new InboundBacklog.StatusCount(OneCStream.MKB10, InboundStatus.NEW, 5, NOW),
             new InboundBacklog.StatusCount(OneCStream.PRICE_LISTS, InboundStatus.BUFFERED, 4, Instant.EPOCH)),
-            1, new InboundBacklog.Overdue(0, 0, 0), NOW);
+            new InboundBacklog.StuckTransfers(1, 0), new InboundBacklog.Overdue(0, 0, 0), NOW);
 
     @Test
     void messages_areCountedForTheExactStreamAndStatus() {
@@ -44,7 +44,7 @@ class InboundBacklogTest {
         InboundBacklog empty = InboundBacklog.empty(NOW);
 
         assertThat(empty.statuses()).isEmpty();
-        assertThat(empty.stuckTransfers()).isZero();
+        assertThat(empty.stuckTransfers()).isEqualTo(new InboundBacklog.StuckTransfers(0, 0));
         assertThat(empty.overdue()).isEqualTo(new InboundBacklog.Overdue(0, 0, 0));
         assertThat(empty.takenAt()).isEqualTo(NOW);
     }
@@ -54,7 +54,8 @@ class InboundBacklogTest {
         List<InboundBacklog.StatusCount> source = new ArrayList<>();
         source.add(new InboundBacklog.StatusCount(OneCStream.MKB10, InboundStatus.NEW, 1, NOW));
 
-        InboundBacklog copy = new InboundBacklog(source, 0, new InboundBacklog.Overdue(0, 0, 0), NOW);
+        InboundBacklog copy = new InboundBacklog(source, new InboundBacklog.StuckTransfers(0, 0),
+                new InboundBacklog.Overdue(0, 0, 0), NOW);
         source.clear();
 
         assertThat(copy.messages(OneCStream.MKB10, InboundStatus.NEW)).isEqualTo(1);

@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.projectx.datareference.entity.inbound.InboundMessage;
 import ru.projectx.datareference.entity.inbound.InboundStatus;
+import ru.projectx.datareference.entity.inbound.OneCStream;
 
 @Repository
 public interface InboundMessageRepository extends JpaRepository<InboundMessage, UUID> {
@@ -23,7 +24,7 @@ public interface InboundMessageRepository extends JpaRepository<InboundMessage, 
              where (message.status = NEW
                     or (message.status = RETRY and message.nextRetryAt <= :now)
                     or (message.status = AWAITING_PARENT
-                        and (message.stream <> PRICE_LISTS or message.batchCount is not null)
+                        and (message.correlationId is null or message.batchCount is not null)
                         and (exists (select lpu.id
                                        from Lpu lpu
                                       where message.awaitedParentKind = CONTRAGENT
@@ -39,7 +40,8 @@ public interface InboundMessageRepository extends JpaRepository<InboundMessage, 
                              or exists (select stranger.externalId
                                           from ForeignReference stranger
                                          where stranger.externalId = message.awaitedParentId
-                                           and stranger.kind = message.awaitedParentKind))))
+                                           and stranger.kind = message.awaitedParentKind
+                                           and message.awaitedParentKind <> POLICY))))
                and not exists (select earlier.messageId
                                  from InboundMessage earlier
                                 where earlier.stream = message.stream
@@ -51,6 +53,17 @@ public interface InboundMessageRepository extends JpaRepository<InboundMessage, 
     List<InboundMessage> findDueForImport(@Param("now") Instant now, Limit limit);
 
     List<InboundMessage> findByCorrelationId(UUID correlationId);
+
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            update inbound_message
+               set status = 'NEW', next_retry_at = null
+             where status = 'AWAITING_PARENT'
+               and awaited_parent_kind = :kind
+               and awaited_parent_id = :parent
+               and (correlation_id is null or batch_count is not null)
+            """)
+    int releaseAwaitingParent(@Param("kind") String kind, @Param("parent") UUID parent);
 
     @Query(nativeQuery = true, value = """
             select payload -> 'data' ->> 'keyValue'
@@ -72,8 +85,9 @@ public interface InboundMessageRepository extends JpaRepository<InboundMessage, 
 
     boolean existsByCorrelationIdAndStatusIn(UUID correlationId, Set<InboundStatus> statuses);
 
-    default List<BufferedTransfer> findTransfersBufferedBefore(Instant receivedBefore, Limit limit) {
-        return findTransfersInStatusBefore(InboundStatus.BUFFERED, receivedBefore, limit);
+    default List<BufferedTransfer> findTransfersBufferedBefore(
+            OneCStream stream, Instant receivedBefore, Limit limit) {
+        return findTransfersInStatusBefore(stream, InboundStatus.BUFFERED, receivedBefore, limit);
     }
 
     @Query("""
@@ -81,12 +95,14 @@ public interface InboundMessageRepository extends JpaRepository<InboundMessage, 
                    min(message.receivedAt) as firstPartReceivedAt,
                    count(message) as parts
               from InboundMessage message
-             where message.status = :status
+             where message.stream = :stream
+               and message.status = :status
              group by message.correlationId
             having min(message.receivedAt) < :receivedBefore
              order by min(message.receivedAt)
             """)
     List<BufferedTransfer> findTransfersInStatusBefore(
+            @Param("stream") OneCStream stream,
             @Param("status") InboundStatus status,
             @Param("receivedBefore") Instant receivedBefore,
             Limit limit);
@@ -105,16 +121,18 @@ public interface InboundMessageRepository extends JpaRepository<InboundMessage, 
     @Query("""
             select count(distinct message.correlationId)
               from InboundMessage message
-             where message.status = BUFFERED
+             where message.stream = :stream
+               and message.status = BUFFERED
                and message.receivedAt < :receivedBefore
             """)
-    long countTransfersBufferedBefore(@Param("receivedBefore") Instant receivedBefore);
+    long countTransfersBufferedBefore(
+            @Param("stream") OneCStream stream, @Param("receivedBefore") Instant receivedBefore);
 
     @Query(nativeQuery = true, value = """
             select count(*)
               from inbound_message
              where payload is not null
-               and (stream in ('POLICIES', 'INSURANCE_CONTRACTS') or status = 'SKIPPED'
+               and (stream in ('POLICIES', 'INSURANCE_CONTRACTS', 'INSURED_ASSOCIATIONS') or status = 'SKIPPED'
                     or (status = 'FAILED' and parent_wait_since is not null))
                and received_at < :receivedBefore
             """)
@@ -126,12 +144,13 @@ public interface InboundMessageRepository extends JpaRepository<InboundMessage, 
                set payload = null,
                    last_error = case when stream = 'POLICIES' then null else last_error end
              where payload is not null
-               and (stream in ('POLICIES', 'INSURANCE_CONTRACTS') or status = 'SKIPPED'
+               and (stream in ('POLICIES', 'INSURANCE_CONTRACTS', 'INSURED_ASSOCIATIONS') or status = 'SKIPPED'
                     or (status = 'FAILED' and parent_wait_since is not null))
                and message_id in (select message_id
                                     from inbound_message
                                    where payload is not null
-                                     and (stream in ('POLICIES', 'INSURANCE_CONTRACTS') or status = 'SKIPPED'
+                                     and (stream in ('POLICIES', 'INSURANCE_CONTRACTS', 'INSURED_ASSOCIATIONS')
+                                          or status = 'SKIPPED'
                                           or (status = 'FAILED' and parent_wait_since is not null))
                                      and received_at < :receivedBefore
                                    order by received_at

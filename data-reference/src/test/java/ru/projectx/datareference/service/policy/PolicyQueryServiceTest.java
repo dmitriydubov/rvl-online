@@ -19,7 +19,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.projectx.datareference.dto.PolicyResponse;
 import ru.projectx.datareference.entity.policy.Policy;
+import ru.projectx.datareference.exception.AmbiguousPolicyNumberException;
 import ru.projectx.datareference.exception.AmbiguousReferenceException;
+import ru.projectx.datareference.exception.PolicyNumberCandidate;
 import ru.projectx.datareference.exception.ReferenceNotFoundException;
 import ru.projectx.datareference.repository.catalog.InsuranceContractRepository;
 import ru.projectx.datareference.repository.policy.PolicyRepository;
@@ -143,6 +145,50 @@ class PolicyQueryServiceTest {
                 .isInstanceOfSatisfying(ReferenceNotFoundException.class, notFound -> {
                     assertThat(notFound.code()).isEqualTo("POLICY_NOT_FOUND");
                     assertThat(notFound.getMessage()).contains(CONTRACT_EXTERNAL_ID.toString()).doesNotContain(NUMBER);
+                });
+        verifyNoInteractions(insuranceContracts);
+    }
+
+    @Test
+    void byNumberInAnyContract_findsTheOnlyPolicyWithThisNumber_withItsContract() {
+        Policy policy = ReadFixtures.policy(CONTRACT_EXTERNAL_ID, List.of(), List.of());
+        when(policies.findAllByNumber(NUMBER)).thenReturn(List.of(policy));
+        when(insuranceContracts.findByExternalId(CONTRACT_EXTERNAL_ID))
+                .thenReturn(Optional.of(ReadFixtures.contract(CONTRACT_EXTERNAL_ID, null)));
+
+        PolicyResponse found = service.byNumberInAnyContract(NUMBER);
+
+        assertThat(found.id()).isEqualTo(policy.id());
+        assertThat(found.contract()).isNotNull()
+                .extracting(PolicyResponse.ContractRef::externalId).isEqualTo(CONTRACT_EXTERNAL_ID);
+    }
+
+    @Test
+    void byNumberInAnyContract_none_isPolicyNotFound_withoutNumberInMessage() {
+        when(policies.findAllByNumber(NUMBER)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.byNumberInAnyContract(NUMBER))
+                .isInstanceOfSatisfying(ReferenceNotFoundException.class, notFound -> {
+                    assertThat(notFound.code()).isEqualTo("POLICY_NOT_FOUND");
+                    assertThat(notFound.getMessage()).isNotBlank().doesNotContain(NUMBER);
+                });
+        verifyNoInteractions(insuranceContracts);
+    }
+
+    @Test
+    void byNumberInAnyContract_several_isAmbiguous_namingEachPolicyWithItsContractGuid_withoutNumber() {
+        UUID otherContract = UUID.fromString("d0000000-0000-4000-8000-000000000008");
+        Policy first = ReadFixtures.policy(CONTRACT_EXTERNAL_ID, List.of(), List.of());
+        Policy second = ReadFixtures.policy(otherContract, List.of(), List.of());
+        when(policies.findAllByNumber(NUMBER)).thenReturn(List.of(first, second));
+
+        assertThatThrownBy(() -> service.byNumberInAnyContract(NUMBER))
+                .isInstanceOfSatisfying(AmbiguousPolicyNumberException.class, ambiguous -> {
+                    assertThat(ambiguous.code()).isEqualTo("AMBIGUOUS_POLICY");
+                    assertThat(ambiguous.candidates()).containsExactly(
+                            new PolicyNumberCandidate(first.id(), CONTRACT_EXTERNAL_ID),
+                            new PolicyNumberCandidate(second.id(), otherContract));
+                    assertThat(ambiguous.getMessage()).isNotBlank().doesNotContain(NUMBER);
                 });
         verifyNoInteractions(insuranceContracts);
     }

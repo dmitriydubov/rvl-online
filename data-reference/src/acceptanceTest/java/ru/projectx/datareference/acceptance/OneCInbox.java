@@ -28,6 +28,9 @@ public class OneCInbox {
     private static final String TRANSFER_STATUSES = """
             select status from inbound_message where payload -> 'data' ->> 'cid' = :cid order by received_at
             """;
+    private static final String TRANSFER_MESSAGE_IDS = """
+            select message_id from inbound_message where payload -> 'data' ->> 'cid' = :cid order by received_at
+            """;
     private static final String MESSAGE_IDS = "select message_id from inbound_message order by received_at";
     private static final String STORED = "select exists(select 1 from inbound_message where message_id = :messageId)";
     private static final String ROW = """
@@ -45,9 +48,11 @@ public class OneCInbox {
             update inbound_message set status = 'NEW', next_retry_at = null, last_error = null, processed_at = null
             where correlation_id = :cid
             """;
-    private static final String AGE = """
-            update inbound_message set received_at = clock_timestamp() - cast(:age as interval)
-            where message_id = :messageId
+    private static final String AGE_FROM_LAST = """
+            update inbound_message
+               set received_at = received_at - ((select last.received_at from inbound_message last
+                                                  where last.message_id = :messageId)
+                                                - (clock_timestamp() - cast(:age as interval)))
             """;
 
     private static final String AGE_ALL = """
@@ -166,14 +171,12 @@ public class OneCInbox {
                 .orElseThrow(() -> new IllegalStateException("сценарий не присылал сообщений потока " + stream));
     }
 
-    public void ageLast(Duration age) {
-        int aged = jdbc.sql(AGE)
-                .param("age", age.toSeconds() + " seconds")
-                .param("messageId", received.getLast().messageId())
-                .update();
-        if (aged != 1) {
+    public void ageFromLast(Duration age) {
+        UUID last = received.getLast().messageId();
+        if (!stored(last)) {
             throw new IllegalStateException("в сырье нет строки последнего сообщения");
         }
+        jdbc.sql(AGE_FROM_LAST).param("age", age.toSeconds() + " seconds").param("messageId", last).update();
     }
 
     public void ageAll(Duration age) {
@@ -198,6 +201,14 @@ public class OneCInbox {
         return received.getLast().envelope();
     }
 
+    public String envelopeOf(UUID messageId) {
+        return received.reversed().stream()
+                .filter(message -> message.messageId().equals(messageId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("сценарий не присылал сообщение " + messageId))
+                .envelope();
+    }
+
     public List<String> expectedStatuses() {
         List<OneCMessage> firstReceipts = received.stream()
                 .collect(Collectors.toMap(OneCMessage::messageId, message -> message, (first, repeated) -> first,
@@ -213,6 +224,10 @@ public class OneCInbox {
 
     public List<String> transferStatuses(UUID cid) {
         return jdbc.sql(TRANSFER_STATUSES).param("cid", cid.toString()).query(String.class).list();
+    }
+
+    public List<UUID> transferMessageIds(UUID cid) {
+        return jdbc.sql(TRANSFER_MESSAGE_IDS).param("cid", cid.toString()).query(UUID.class).list();
     }
 
     public List<String> statuses() {

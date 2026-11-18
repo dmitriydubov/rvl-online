@@ -63,7 +63,7 @@ class InboundBacklogReadsTest {
         InboundBacklog backlog = reads.read();
 
         assertThat(backlog.statuses()).isEmpty();
-        assertThat(backlog.stuckTransfers()).isZero();
+        assertThat(backlog.stuckTransfers()).isEqualTo(new InboundBacklog.StuckTransfers(0, 0));
         assertThat(backlog.overdue()).isEqualTo(new InboundBacklog.Overdue(0, 0, 0));
         assertThat(backlog.takenAt()).isEqualTo(NOW);
     }
@@ -98,7 +98,16 @@ class InboundBacklogReadsTest {
         buffer(UUID.randomUUID(), Duration.ofHours(2));
         buffer(UUID.randomUUID(), Duration.ofMinutes(30));
 
-        assertThat(reads.read().stuckTransfers()).isEqualTo(2);
+        assertThat(reads.read().stuckTransfers()).isEqualTo(new InboundBacklog.StuckTransfers(2, 0));
+    }
+
+    @Test
+    void stuckTransfers_areCountedPerStream() {
+        buffer(UUID.randomUUID(), Duration.ofHours(3));
+        buffer(OneCStream.INSURED_ASSOCIATIONS, UUID.randomUUID(), Duration.ofHours(2));
+        buffer(OneCStream.INSURED_ASSOCIATIONS, UUID.randomUUID(), Duration.ofHours(4));
+
+        assertThat(reads.read().stuckTransfers()).isEqualTo(new InboundBacklog.StuckTransfers(1, 2));
     }
 
     @Test
@@ -132,7 +141,11 @@ class InboundBacklogReadsTest {
     }
 
     private void buffer(UUID transfer, Duration age) {
-        UUID part = store(OneCStream.PRICE_LISTS, InboundStatus.BUFFERED, age);
+        buffer(OneCStream.PRICE_LISTS, transfer, age);
+    }
+
+    private void buffer(OneCStream stream, UUID transfer, Duration age) {
+        UUID part = store(stream, InboundStatus.BUFFERED, age);
         testJdbc.update("update inbound_message set correlation_id = ? where message_id = ?", transfer, part);
     }
 

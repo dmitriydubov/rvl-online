@@ -39,3 +39,7 @@ databaseChangeLog:
       file: db/changelog/019-policy-personal-data-retention.yaml
   - include:
       file: db/changelog/020-leader-lock.yaml
+  - include:
+      file: db/changelog/021-insured-associations.yaml
+  - include:
+      file: db/changelog/022-policy-number-index.yaml

@@ -69,6 +69,12 @@ final class OneCPriceTransferMessages {
         return batchMessage(messageId, transferData(cid, service), JSON.createArrayNode().add(row), InboundStatus.FAILED);
     }
 
+    static OneCMessage batchWithoutRowsArray(UUID messageId, UUID cid, String service, String defect) {
+        ObjectNode data = RecordSetDefects.withoutRowsArray(
+                transferData(cid, service), defect, OneCServiceMessages.priceRow(1, SINGLE_ROW));
+        return new OneCMessage(OneCStream.PRICE_LISTS, BATCH_QUEUE, data, InboundStatus.FAILED, messageId);
+    }
+
     static OneCMessage batchWithoutTransfer(UUID messageId, String service, List<Map<String, String>> rows) {
         ArrayNode recordSet = JSON.createArrayNode();
         rows.forEach(row -> recordSet.add(numberedRow(row)));

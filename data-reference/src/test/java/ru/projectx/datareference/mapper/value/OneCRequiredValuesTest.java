@@ -145,6 +145,35 @@ class OneCRequiredValuesTest {
                 .hasMessage("поле share не является числом");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"recordSet\":null}"})
+    void absentArray_isMissingFieldRatherThanEmpty(String json) {
+        assertThatThrownBy(() -> OneCRequiredValues.array(node(json), "recordSet"))
+                .isInstanceOf(OneCFieldException.class)
+                .hasMessage("нет обязательного поля recordSet");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"rowNumber\":1}", "{}", "\"[]\"", "0", "true"})
+    void arrayOfAnotherType_isRejectedWithoutValue(String value) {
+        assertThatThrownBy(() -> OneCRequiredValues.array(node("{\"recordSet\":" + value + "}"), "recordSet"))
+                .isInstanceOf(OneCFieldException.class)
+                .hasMessage("поле recordSet не является массивом");
+    }
+
+    @Test
+    void array_isReadWithItsElementsInSourceOrder() {
+        ObjectNode data = node("{\"recordSet\":[{\"rowNumber\":2},{\"rowNumber\":1}]}");
+
+        assertThat(OneCRequiredValues.array(data, "recordSet"))
+                .containsExactly(data.path("recordSet").get(0), data.path("recordSet").get(1));
+    }
+
+    @Test
+    void emptyArray_isReadAsArrayWithoutElements() {
+        assertThat(OneCRequiredValues.array(node("{\"recordSet\":[]}"), "recordSet")).isEmpty();
+    }
+
     private static ObjectNode node(String json) {
         return (ObjectNode) JSON.readTree(json);
     }

@@ -72,6 +72,7 @@ public class OneCOutcomeSteps {
     }
 
     @Тогда("исходы сообщений передачи прайса {string} в порядке приёма — {string}")
+    @Тогда("исходы сообщений передачи связей застрахованных {string} в порядке приёма — {string}")
     public void transferOutcomesInOrder(String cid, String outcomes) {
         List<String> expected = Stream.of(outcomes.split(",")).map(String::strip).map(OneCOutcomeSteps::status).toList();
 
@@ -93,14 +94,21 @@ public class OneCOutcomeSteps {
 
     @Тогда("сырьё последнего сообщения сохранено и содержит {string}")
     public void lastMessageRawKept(String value) {
-        String payload = inbox.last().payload();
+        assertRawKept(inbox.last().payload(), inbox.lastEnvelope(), "последнего сообщения", value);
+    }
 
-        assertThat(payload).as("тело последнего сообщения").isNotNull();
+    @Тогда("сырьё сообщения 1С:УСК {string} сохранено и содержит {string}")
+    public void messageRawKept(String messageId, String value) {
+        UUID id = UUID.fromString(messageId);
+        assertRawKept(inbox.row(id).payload(), inbox.envelopeOf(id), "сообщения " + messageId, value);
+    }
+
+    private static void assertRawKept(String payload, String sent, String which, String value) {
+        assertThat(payload).as("тело %s", which).isNotNull();
         JsonNode kept = JSON.readTree(payload);
-        assertThat(kept).as("тело последнего сообщения — присланный конверт целиком")
-                .isEqualTo(JSON.readTree(inbox.lastEnvelope()));
+        assertThat(kept).as("тело %s — присланный конверт целиком", which).isEqualTo(JSON.readTree(sent));
         assertThat(stringsOf(kept.path(DATA)))
-                .as("строковые значения data последнего сообщения")
+                .as("строковые значения data %s", which)
                 .contains(value);
     }
 

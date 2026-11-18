@@ -35,6 +35,12 @@ public final class AmbiguousReferenceException extends RuntimeException {
                 "по номеру полиса в договоре найдено больше одной записи", CandidateKind.POLICY, policyIds);
     }
 
+    public static AmbiguousReferenceException relativePolicy(List<UUID> policyIds) {
+        return new AmbiguousReferenceException(AMBIGUOUS_POLICY,
+                "по номеру полиса среди родственников застрахованного найдено больше одной записи", CandidateKind.POLICY,
+                policyIds);
+    }
+
     public static AmbiguousReferenceException priceContract(UUID lpuId, List<UUID> lpuContractIds) {
         return new AmbiguousReferenceException(AMBIGUOUS_PRICE_CONTRACT,
                 "у ЛПУ " + lpuId + " больше одного действующего кандидата на прайсовый договор",

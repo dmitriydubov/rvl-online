@@ -16,17 +16,18 @@ import tools.jackson.databind.JsonNode;
 
 public class OneCJournalSteps {
 
-    private static final Map<String, OneCStream> STREAMS = Map.of(
-            "контрагенты", OneCStream.CONTRAGENTS,
-            "договоры ЛПУ", OneCStream.LPU_CONTRACTS,
-            "услуги контрагентов", OneCStream.CONTRAGENT_SERVICES,
-            "программы", OneCStream.PROGRAMS,
-            "контактная информация", OneCStream.LPU_CONTACTS,
-            "договоры страхования", OneCStream.INSURANCE_CONTRACTS,
-            "полисы", OneCStream.POLICIES,
-            "прейскуранты", OneCStream.PRICE_LISTS,
-            "МКБ-10", OneCStream.MKB10,
-            "виды обращений", OneCStream.APPEAL_TYPES);
+    private static final Map<String, OneCStream> STREAMS = Map.ofEntries(
+            Map.entry("контрагенты", OneCStream.CONTRAGENTS),
+            Map.entry("договоры ЛПУ", OneCStream.LPU_CONTRACTS),
+            Map.entry("услуги контрагентов", OneCStream.CONTRAGENT_SERVICES),
+            Map.entry("программы", OneCStream.PROGRAMS),
+            Map.entry("контактная информация", OneCStream.LPU_CONTACTS),
+            Map.entry("договоры страхования", OneCStream.INSURANCE_CONTRACTS),
+            Map.entry("полисы", OneCStream.POLICIES),
+            Map.entry("прейскуранты", OneCStream.PRICE_LISTS),
+            Map.entry("МКБ-10", OneCStream.MKB10),
+            Map.entry("виды обращений", OneCStream.APPEAL_TYPES),
+            Map.entry("связи застрахованных", OneCStream.INSURED_ASSOCIATIONS));
 
     private static final Pattern EXPIRED_WAITS = Pattern.compile(
             "сообщения потока (\\S+) не дождались родителя за срок ожидания \\S+: отклонено (\\d+), "
@@ -97,6 +98,13 @@ public class OneCJournalSteps {
         assertThat(onlyError().getFormattedMessage())
                 .as("запись ERROR об истёкшем ожидании услуги передачей")
                 .startsWith("передача прайса " + cid + " не дождалась услуги ");
+    }
+
+    @Тогда("в журнале Дата-референса есть ровно одна запись уровня ERROR об истёкшем ожидании полиса передачи связей застрахованных {string}")
+    public void expiredAssociationTransferLogged(String cid) {
+        assertThat(onlyError().getFormattedMessage())
+                .as("запись ERROR об истёкшем ожидании полиса передачей связей")
+                .startsWith("передача связей застрахованных " + cid + " не дождалась полиса ");
     }
 
     private ILoggingEvent onlyError() {

@@ -137,6 +137,58 @@ class ParentWaitStorageTest {
     }
 
     @Test
+    void expiredTransfer_isFoundByItsFinalMessageOnly() {
+        UUID service = UUID.randomUUID();
+        waitingPart(service, null, NOW.minusSeconds(60));
+        UUID finalMessage = waitingPart(service, 1, NOW.minusSeconds(50));
+
+        assertThat(idsOf(waits.findExpiredUnresolved(WAITING_SINCE, Limit.of(10)))).containsExactly(finalMessage);
+    }
+
+    @Test
+    void transferWaitingForAPolicy_isNotDue_untilThePolicyReleasesItsFinalMessage() {
+        UUID part = waitingAssociationPart(null, NOW.minusSeconds(60));
+        UUID finalMessage = waitingAssociationPart(1, NOW.minusSeconds(50));
+        UUID otherPolicyWait = waiting(OneCStream.INSURED_ASSOCIATIONS, ParentKind.POLICY, UUID.randomUUID(), null,
+                NOW.minusSeconds(40));
+        assertThat(due()).isEmpty();
+
+        int released = new TransactionTemplate(transactions).execute(
+                status -> inbound.releaseAwaitingParent(ParentKind.POLICY.name(), PARENT));
+
+        assertThat(released).isEqualTo(1);
+        assertThat(due()).containsExactly(finalMessage);
+        assertThat(statusOf(part)).isEqualTo(InboundStatus.AWAITING_PARENT.name());
+        assertThat(statusOf(otherPolicyWait)).isEqualTo(InboundStatus.AWAITING_PARENT.name());
+    }
+
+    @Test
+    void releasingAPolicy_doesNotTouchMessagesWaitingForAnotherKindWithTheSameGuid() {
+        UUID contact = waiting(OneCStream.LPU_CONTACTS, ParentKind.CONTRAGENT, PARENT, null, NOW.minusSeconds(60));
+
+        new TransactionTemplate(transactions).executeWithoutResult(
+                status -> inbound.releaseAwaitingParent(ParentKind.POLICY.name(), PARENT));
+
+        assertThat(statusOf(contact)).isEqualTo(InboundStatus.AWAITING_PARENT.name());
+    }
+
+    @Test
+    void policyRecognisedAsForeign_neitherWakesNorShieldsTheWaitingTransfer() {
+        UUID finalMessage = waitingAssociationPart(1, NOW.minusSeconds(50));
+        remember(PARENT, "POLICY");
+
+        assertThat(due()).isEmpty();
+        assertThat(idsOf(waits.findExpiredUnresolved(WAITING_SINCE, Limit.of(10)))).containsExactly(finalMessage);
+    }
+
+    @Test
+    void policyWaitPastTheDeadline_expiresWithoutLookingIntoPolicies() {
+        UUID finalMessage = waitingAssociationPart(1, NOW.minusSeconds(50));
+
+        assertThat(idsOf(waits.findExpiredUnresolved(WAITING_SINCE, Limit.of(10)))).containsExactly(finalMessage);
+    }
+
+    @Test
     void awaitingOfRecord_isOnlyEarlierWaitingMessagesOfTheSameStreamAndRecord() {
         UUID earlier = waiting(OneCStream.LPU_CONTRACTS, ParentKind.CONTRAGENT, PARENT, RECORD, NOW.minusSeconds(60));
         waiting(OneCStream.LPU_CONTRACTS, ParentKind.CONTRAGENT, PARENT, UUID.randomUUID(), NOW.minusSeconds(55));
@@ -250,6 +302,18 @@ class ParentWaitStorageTest {
         testJdbc.update("update inbound_message set correlation_id = ?, batch_count = ?, row_count = 1 "
                 + "where message_id = ?", CID, batchCount, messageId);
         return messageId;
+    }
+
+    private UUID waitingAssociationPart(@Nullable Integer batchCount, Instant receivedAt) {
+        UUID messageId = waiting(OneCStream.INSURED_ASSOCIATIONS, ParentKind.POLICY, PARENT, null, receivedAt);
+        testJdbc.update("update inbound_message set correlation_id = ?, batch_count = ?, row_count = 1 "
+                + "where message_id = ?", CID, batchCount, messageId);
+        return messageId;
+    }
+
+    private String statusOf(UUID messageId) {
+        return jdbc.sql("select status from inbound_message where message_id = :id").param("id", messageId)
+                .query(String.class).single();
     }
 
     private UUID row(String status, OneCStream stream, Instant receivedAt, @Nullable Instant waitingSince) {

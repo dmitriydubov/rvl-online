@@ -15,8 +15,11 @@ import ru.projectx.datareference.entity.policy.Policy;
 import ru.projectx.datareference.entity.policy.PolicyProgram;
 import ru.projectx.datareference.entity.policy.PolicyServiceLine;
 import ru.projectx.datareference.entity.catalog.Program;
+import ru.projectx.datareference.exception.AmbiguousPolicyNumberException;
 import ru.projectx.datareference.exception.AmbiguousReferenceException;
+import ru.projectx.datareference.exception.PolicyNumberCandidate;
 import ru.projectx.datareference.exception.MissingReference;
+import ru.projectx.datareference.exception.ReferenceNotFoundException;
 import ru.projectx.datareference.repository.catalog.InsuranceContractRepository;
 import ru.projectx.datareference.repository.policy.PolicyRepository;
 import ru.projectx.datareference.repository.catalog.ProgramRepository;
@@ -63,6 +66,20 @@ public class PolicyQueryService implements PolicyReads {
         return found.stream().findFirst()
                 .map(this::assemble)
                 .orElseThrow(() -> MissingReference.POLICY_BY_NUMBER.notFound(contractExternalId));
+    }
+
+    @Override
+    @RestReadTransaction
+    public PolicyResponse byNumberInAnyContract(String number) {
+        List<Policy> found = policies.findAllByNumber(number);
+        if (found.size() > 1) {
+            throw AmbiguousPolicyNumberException.of(found.stream()
+                    .map(policy -> new PolicyNumberCandidate(policy.id(), policy.details().externalContractId()))
+                    .toList());
+        }
+        return found.stream().findFirst()
+                .map(this::assemble)
+                .orElseThrow(ReferenceNotFoundException::policyWithRequestedNumber);
     }
 
     private PolicyResponse assemble(Policy policy) {

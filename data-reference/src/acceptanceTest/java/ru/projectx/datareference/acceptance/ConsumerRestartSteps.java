@@ -33,7 +33,8 @@ public class ConsumerRestartSteps {
         this.configuredQueues = List.of(
                 queues.policies(), queues.insuranceContracts(), queues.contragents(), queues.mkb10(),
                 queues.lpuContracts(), queues.programs(), queues.appealTypes(), queues.lpuContacts(),
-                queues.priceLists(), queues.priceListsFinal(), queues.contragentServices());
+                queues.priceLists(), queues.priceListsFinal(), queues.contragentServices(),
+                queues.insuredAssociations(), queues.insuredAssociationsFinal());
     }
 
     void restartPass() {

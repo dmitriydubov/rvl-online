@@ -4,13 +4,13 @@
 
 Java 21, Spring Boot 4.0.7, PostgreSQL 16, Liquibase, RabbitMQ 4.1 (брокер 1С:УСК). Порт `8080` — REST и
 пробы, `8081` — актуатор. К базе — 17 соединений на экземпляр. Версии —
-[CHANGELOG.md](CHANGELOG.md).
+[CHANGELOG](CHANGELOG.md).
 
 ## О сервисе
 
-Справочники и полисы РВЛ ОНЛАЙН: принимает из 1С:УСК и отдаёт Заявкам и Договорам по REST; в 1С не пишет.
-Реплик — до трёх: REST — на всех, очереди 1С, разбор и расписания — на одном ведущем;
-кэш сбрасывается на всех, часы — по NTP.
+Справочники, полисы и связи застрахованных РВЛ ОНЛАЙН: принимает из 1С:УСК, отдаёт Заявкам и Договорам по REST;
+в 1С не пишет. Реплик — до трёх: REST — на всех, очереди 1С, разбор и расписания — на ведущем; кэш сбрасывается
+на всех, часы — по NTP.
 
 ## Таймауты
 
@@ -29,9 +29,9 @@ Java 21, Spring Boot 4.0.7, PostgreSQL 16, Liquibase, RabbitMQ 4.1 (брокер
 | Кэш справочников | 10 мин | `REFERENCE_CACHE_TTL` |
 | Переподключение сброса кэша | 1–10 с | `REFERENCE_CACHE_RECONNECT_DELAY`, `…_MAX_DELAY` |
 
-## Без базы и без брокера
+## Без базы и брокера
 
-- Нет базы: кэш отдаётся, остальное — 503 через 2 с, у зависшей базы — до 5 с.
+- Нет базы: кэш отдаётся, остальное — 503 через 2 с, у зависшей — до 5 с.
   Ведущего нет, сообщения ждут в очередях; приём вернётся сам, кэш сбросится целиком. Без базы не стартует.
 - Нет брокера: сервис стартует и отвечает, приём ждёт. Без очередей 1С — `RABBITMQ_LISTENER_AUTO_STARTUP=false`.
   Пропала очередь — ведущий вернёт потребителя сам, раз в 30 с (`onec_ingest_queues_without_consumer`).
@@ -40,14 +40,14 @@ Java 21, Spring Boot 4.0.7, PostgreSQL 16, Liquibase, RabbitMQ 4.1 (брокер
 
 ## Сообщения и REST
 
-Из 1С — 11 очередей, по потребителю на ведущем; подтверждение — после записи в базу.
+Из 1С — 13 очередей по потребителю; подтверждение — после записи в базу.
 Разбор — по порядку приёма, действует последнее; не наше — `SKIPPED` с причиной. Наружу —
-`GET /internal/v1/…`: справочники и полисы, [openapi.yaml](docs/openapi.yaml).
+`GET /internal/v1/…`: справочники, полисы и родственники застрахованного, [openapi](docs/openapi.yaml).
 
 ## Диагностика по базе
 
 Сырьё — `inbound_message`, непринятые базой тела — `quarantine`. Статусы: `NEW` → `PROCESSED`, `SKIPPED`; `BUFFERED` —
-часть передачи прайса; `AWAITING_PARENT` — ждёт родителя; `RETRY` — временный сбой; `FAILED` — нужен человек
+ждёт сборки передачи; `AWAITING_PARENT` — ждёт родителя; `RETRY` — временный сбой; `FAILED` — нужен человек
 (`last_error`).
 
 ```sql
@@ -63,7 +63,7 @@ select stream, awaited_parent_kind, awaited_parent_id, count(*), min(parent_wait
 
 ## Подробнее
 
-- [troubleshooting.md](docs/troubleshooting.md) — известные проблемы.
-- [operations.md](docs/operations.md) — настройки, выкатка, метрики, ручные операции.
-- [design.md](docs/design.md) — почему так устроено; [code-style.md](docs/code-style.md) — как пишем код.
-- [load-testing.md](docs/load-testing.md) — нагрузка.
+- [troubleshooting](docs/troubleshooting.md) — известные проблемы.
+- [operations](docs/operations.md) — настройки, выкатка, метрики, ручные операции.
+- [design](docs/design.md) — почему так устроено; [code-style](docs/code-style.md) — как пишем код.
+- [load-testing](docs/load-testing.md) — нагрузка.

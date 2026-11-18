@@ -44,7 +44,8 @@ class ReferenceCacheDependenciesTest {
                 Arguments.of(OneCStream.LPU_CONTACTS, Set.of(LPU_CATALOG, LPU_CARD)),
                 Arguments.of(OneCStream.PRICE_LISTS, Set.of(LPU_SERVICES_WITH_PRICES, SERVICE_PRICES)),
                 Arguments.of(OneCStream.CONTRAGENT_SERVICES,
-                        Set.of(LPU_SERVICES, LPU_SERVICES_WITH_PRICES, SERVICE_PRICES)));
+                        Set.of(LPU_SERVICES, LPU_SERVICES_WITH_PRICES, SERVICE_PRICES)),
+                Arguments.of(OneCStream.INSURED_ASSOCIATIONS, Set.of()));
     }
 
     @ParameterizedTest

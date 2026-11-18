@@ -124,8 +124,8 @@ class PriceListTransferRejectionTest {
         assertFailed(trigger, "поле countRows больше допустимого");
         assertThat(trigger.transferPart().correlationId()).isEqualTo(CID);
         assertThat(trigger.transferPart().batchCount()).isNull();
-        assertThat(PriceListTransfer.of(CID, List.of(trigger)))
-                .isEqualTo(new PriceListTransfer.Rejected("передача " + CID + " уже отклонена", List.of()));
+        assertThat(CorrelatedTransfer.of(CID, List.of(trigger)))
+                .isEqualTo(new CorrelatedTransfer.Rejected("передача " + CID + " уже отклонена", List.of()));
     }
 
     @Test

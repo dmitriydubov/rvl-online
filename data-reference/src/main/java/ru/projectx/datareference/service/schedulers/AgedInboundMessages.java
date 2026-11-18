@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Component;
+import ru.projectx.datareference.entity.inbound.OneCStream;
 import ru.projectx.datareference.repository.database.DatabaseClockRepository;
 import ru.projectx.datareference.repository.inbound.BufferedTransfer;
 import ru.projectx.datareference.repository.inbound.InboundMessageRepository;
@@ -32,12 +33,12 @@ public class AgedInboundMessages {
         return quarantine.forgetBodies(receivedBefore(age), limit);
     }
 
-    public List<BufferedTransfer> transfersBufferedLongerThan(Duration age, int limit) {
-        return repository.findTransfersBufferedBefore(receivedBefore(age), Limit.of(limit));
+    public List<BufferedTransfer> transfersBufferedLongerThan(OneCStream stream, Duration age, int limit) {
+        return repository.findTransfersBufferedBefore(stream, receivedBefore(age), Limit.of(limit));
     }
 
-    public List<BufferedTransfer> allTransfersBufferedLongerThan(Duration age) {
-        return repository.findTransfersBufferedBefore(receivedBefore(age), Limit.unlimited());
+    public List<BufferedTransfer> allTransfersBufferedLongerThan(OneCStream stream, Duration age) {
+        return repository.findTransfersBufferedBefore(stream, receivedBefore(age), Limit.unlimited());
     }
 
     private Instant receivedBefore(Duration age) {

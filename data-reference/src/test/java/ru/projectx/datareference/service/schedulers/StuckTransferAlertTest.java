@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
+import ru.projectx.datareference.entity.inbound.OneCStream;
 import ru.projectx.datareference.repository.database.DatabaseClockRepository;
 import ru.projectx.datareference.repository.inbound.BufferedTransfer;
 import ru.projectx.datareference.service.onec.SupersededTransferClosure;
@@ -63,7 +64,7 @@ class StuckTransferAlertTest {
 
     @Test
     void stuckTransfers_areReportedWithAgeAndPartsInOneWarning() {
-        when(agedMessages.transfersBufferedLongerThan(THRESHOLD, REPORT_LIMIT)).thenReturn(List.of(
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD, REPORT_LIMIT)).thenReturn(List.of(
                 transfer(FIRST_TRANSFER, Duration.ofHours(5), 12), transfer(SECOND_TRANSFER, Duration.ofHours(2), 1)));
 
         alert().reportStuckTransfers();
@@ -77,8 +78,25 @@ class StuckTransferAlertTest {
     }
 
     @Test
+    void stuckAssociationTransfers_areReportedInTheirOwnWarning() {
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD, REPORT_LIMIT))
+                .thenReturn(List.of());
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.INSURED_ASSOCIATIONS, THRESHOLD, REPORT_LIMIT))
+                .thenReturn(List.of(transfer(FIRST_TRANSFER, Duration.ofHours(3), 1)));
+
+        alert().reportStuckTransfers();
+
+        assertThat(logged.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(event.getFormattedMessage()).isEqualTo("передачи связей застрахованных не собрались за PT1H30M: "
+                    + FIRST_TRANSFER + " (ждёт PT3H, частей 1). "
+                    + "Связи по их отбору остались прежними; недостающие сообщения может прислать только источник");
+        });
+    }
+
+    @Test
     void reportLimitReached_warningSaysOthersMayExist() {
-        when(agedMessages.transfersBufferedLongerThan(THRESHOLD, REPORT_LIMIT)).thenReturn(List.of(
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD, REPORT_LIMIT)).thenReturn(List.of(
                 transfer(FIRST_TRANSFER, Duration.ofHours(5), 2), transfer(SECOND_TRANSFER, Duration.ofHours(4), 2),
                 transfer(THIRD_TRANSFER, Duration.ofHours(3), 2)));
 
@@ -90,7 +108,7 @@ class StuckTransferAlertTest {
 
     @Test
     void noStuckTransfers_nothingIsLogged() {
-        when(agedMessages.transfersBufferedLongerThan(THRESHOLD, REPORT_LIMIT)).thenReturn(List.of());
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD, REPORT_LIMIT)).thenReturn(List.of());
 
         alert().reportStuckTransfers();
 
@@ -99,9 +117,9 @@ class StuckTransferAlertTest {
 
     @Test
     void supersededTransfer_isClosed_andOnlyTheRestAreReported() {
-        when(agedMessages.allTransfersBufferedLongerThan(THRESHOLD)).thenReturn(
+        when(agedMessages.allTransfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD)).thenReturn(
                 List.of(transfer(FIRST_TRANSFER, Duration.ofHours(5), 2), transfer(SECOND_TRANSFER, Duration.ofHours(2), 1)));
-        when(agedMessages.transfersBufferedLongerThan(THRESHOLD, REPORT_LIMIT))
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD, REPORT_LIMIT))
                 .thenReturn(List.of(transfer(SECOND_TRANSFER, Duration.ofHours(2), 1)));
         when(closure.closeIfSuperseded(FIRST_TRANSFER)).thenReturn(true);
 
@@ -118,8 +136,8 @@ class StuckTransferAlertTest {
         List<BufferedTransfer> beyondLimit = List.of(transfer(FIRST_TRANSFER, Duration.ofHours(9), 1),
                 transfer(SECOND_TRANSFER, Duration.ofHours(8), 1), transfer(THIRD_TRANSFER, Duration.ofHours(7), 1),
                 transfer(FOURTH_TRANSFER, Duration.ofHours(6), 1));
-        when(agedMessages.allTransfersBufferedLongerThan(THRESHOLD)).thenReturn(beyondLimit);
-        when(agedMessages.transfersBufferedLongerThan(THRESHOLD, REPORT_LIMIT)).thenReturn(beyondLimit.subList(0, 3));
+        when(agedMessages.allTransfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD)).thenReturn(beyondLimit);
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD, REPORT_LIMIT)).thenReturn(beyondLimit.subList(0, 3));
 
         alert().reportStuckTransfers();
 
@@ -128,9 +146,9 @@ class StuckTransferAlertTest {
 
     @Test
     void allStuckTransfersClosed_nothingIsReported() {
-        when(agedMessages.allTransfersBufferedLongerThan(THRESHOLD))
+        when(agedMessages.allTransfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD))
                 .thenReturn(List.of(transfer(FIRST_TRANSFER, Duration.ofHours(5), 2)));
-        when(agedMessages.transfersBufferedLongerThan(THRESHOLD, REPORT_LIMIT)).thenReturn(List.of());
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD, REPORT_LIMIT)).thenReturn(List.of());
         when(closure.closeIfSuperseded(FIRST_TRANSFER)).thenReturn(true);
 
         alert().reportStuckTransfers();
@@ -142,8 +160,8 @@ class StuckTransferAlertTest {
     void databaseFailureWhileClosing_isLogged_andTransferIsStillReported() {
         List<BufferedTransfer> stuck = List.of(
                 transfer(FIRST_TRANSFER, Duration.ofHours(5), 2), transfer(SECOND_TRANSFER, Duration.ofHours(2), 1));
-        when(agedMessages.allTransfersBufferedLongerThan(THRESHOLD)).thenReturn(stuck);
-        when(agedMessages.transfersBufferedLongerThan(THRESHOLD, REPORT_LIMIT)).thenReturn(stuck);
+        when(agedMessages.allTransfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD)).thenReturn(stuck);
+        when(agedMessages.transfersBufferedLongerThan(OneCStream.PRICE_LISTS, THRESHOLD, REPORT_LIMIT)).thenReturn(stuck);
         when(closure.closeIfSuperseded(FIRST_TRANSFER)).thenThrow(new CannotAcquireLockException("занято",
                 new SQLException("lock timeout", "55P03")));
 

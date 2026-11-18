@@ -55,6 +55,9 @@ class ReferenceImportDispatchTest {
     @Mock
     private SupersededParentWaits supersededWaits;
 
+    @Mock
+    private ParentArrivals parentArrivals;
+
     private final LeadershipFence fence = mock(LeadershipFence.class);
 
     @Test
@@ -62,7 +65,7 @@ class ReferenceImportDispatchTest {
         doThrow(new LeadershipLostException("0b5f3c1e-7a2d-4e8b-9c6f-1d2e3f4a5b6c")).when(fence).holdUntilCommit();
 
         ReferenceImportService service = new ReferenceImportService(
-                List.of(), List.of(), inboundMessageService, supersededWaits, json, events, fence);
+                List.of(), List.of(), inboundMessageService, supersededWaits, parentArrivals, json, events, fence);
 
         assertThatThrownBy(() -> service.importMessage(message(OneCStream.MKB10, "{\"data\":" + MKB10_DATA + "}")))
                 .isInstanceOf(LeadershipLostException.class);
@@ -162,7 +165,7 @@ class ReferenceImportDispatchTest {
 
     @Test
     void bodyThatIsNotJson_isContractViolation_withoutQuotingTheBody() {
-        ReferenceImportService service = new ReferenceImportService(List.of(), List.of(), inboundMessageService, supersededWaits, json, events, fence);
+        ReferenceImportService service = new ReferenceImportService(List.of(), List.of(), inboundMessageService, supersededWaits, parentArrivals, json, events, fence);
 
         assertThatThrownBy(() -> service.importMessage(message(OneCStream.MKB10, "{не json")))
                 .isInstanceOf(OneCFieldException.class)
@@ -173,7 +176,7 @@ class ReferenceImportDispatchTest {
     }
 
     private void assertEnvelopeRejected(String payload, String reason) {
-        ReferenceImportService service = new ReferenceImportService(List.of(), List.of(), inboundMessageService, supersededWaits, json, events, fence);
+        ReferenceImportService service = new ReferenceImportService(List.of(), List.of(), inboundMessageService, supersededWaits, parentArrivals, json, events, fence);
 
         assertThatThrownBy(() -> service.importMessage(message(OneCStream.MKB10, payload)))
                 .isInstanceOf(OneCFieldException.class)
@@ -181,7 +184,7 @@ class ReferenceImportDispatchTest {
     }
 
     private ReferenceImportService service() {
-        return new ReferenceImportService(List.of(mkb10Mapper), List.of(priceListHandler), inboundMessageService, supersededWaits, json, events, fence);
+        return new ReferenceImportService(List.of(mkb10Mapper), List.of(priceListHandler), inboundMessageService, supersededWaits, parentArrivals, json, events, fence);
     }
 
     private static InboundMessage message(OneCStream stream, String payload) {

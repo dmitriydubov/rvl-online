@@ -30,6 +30,14 @@ public final class OneCRequiredValues {
                 .orElseThrow(() -> wrongType(field, "логическим значением"));
     }
 
+    public static JsonNode array(JsonNode data, String field) {
+        JsonNode value = requirePresent(data, field);
+        if (!value.isArray()) {
+            throw wrongType(field, "массивом");
+        }
+        return value;
+    }
+
     public static BigDecimal percent(JsonNode data, String field) {
         requirePresent(data, field);
         BigDecimal value = OneCMoneyScale.read(data, field).orElseThrow(() -> wrongType(field, "числом"));

@@ -20,7 +20,8 @@ class OneCQueueConsumersTest {
     private static final OneCQueueProperties QUEUES = new OneCQueueProperties(
             "q-policies", "q-insurance-contracts", "q-contragents", "q-mkb10", "q-lpu-contracts",
             "q-programs", "q-appeal-types", "q-lpu-contacts", "q-price-lists", "q-price-lists-final",
-            "q-contragent-services");
+            "q-contragent-services", "q-insured-associations",
+            "q-insured-associations-final");
 
     @Mock
     private OneCConsumerExpectation expectation;
@@ -73,6 +74,6 @@ class OneCQueueConsumersTest {
     private static Set<String> allQueues() {
         return Set.of("q-policies", "q-insurance-contracts", "q-contragents", "q-mkb10", "q-lpu-contracts",
                 "q-programs", "q-appeal-types", "q-lpu-contacts", "q-price-lists", "q-price-lists-final",
-                "q-contragent-services");
+                "q-contragent-services", "q-insured-associations", "q-insured-associations-final");
     }
 }

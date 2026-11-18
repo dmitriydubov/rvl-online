@@ -6,23 +6,27 @@ import ru.projectx.datareference.entity.inbound.OneCStream;
 
 enum OneCQueue {
 
-    POLICIES(OneCStream.POLICIES, OneCQueueProperties::policies),
-    INSURANCE_CONTRACTS(OneCStream.INSURANCE_CONTRACTS, OneCQueueProperties::insuranceContracts),
-    CONTRAGENTS(OneCStream.CONTRAGENTS, OneCQueueProperties::contragents),
-    MKB10(OneCStream.MKB10, OneCQueueProperties::mkb10),
-    LPU_CONTRACTS(OneCStream.LPU_CONTRACTS, OneCQueueProperties::lpuContracts),
-    PROGRAMS(OneCStream.PROGRAMS, OneCQueueProperties::programs),
-    APPEAL_TYPES(OneCStream.APPEAL_TYPES, OneCQueueProperties::appealTypes),
-    LPU_CONTACTS(OneCStream.LPU_CONTACTS, OneCQueueProperties::lpuContacts),
-
-    PRICE_LISTS(OneCStream.PRICE_LISTS, OneCQueueProperties::priceLists),
-
+    POLICIES(OneCQueueProperties::policies),
+    INSURANCE_CONTRACTS(OneCQueueProperties::insuranceContracts),
+    CONTRAGENTS(OneCQueueProperties::contragents),
+    MKB10(OneCQueueProperties::mkb10),
+    LPU_CONTRACTS(OneCQueueProperties::lpuContracts),
+    PROGRAMS(OneCQueueProperties::programs),
+    APPEAL_TYPES(OneCQueueProperties::appealTypes),
+    LPU_CONTACTS(OneCQueueProperties::lpuContacts),
+    PRICE_LISTS(OneCQueueProperties::priceLists),
     PRICE_LISTS_FINAL(OneCStream.PRICE_LISTS, OneCQueueProperties::priceListsFinal),
-
-    CONTRAGENT_SERVICES(OneCStream.CONTRAGENT_SERVICES, OneCQueueProperties::contragentServices);
+    CONTRAGENT_SERVICES(OneCQueueProperties::contragentServices),
+    INSURED_ASSOCIATIONS(OneCQueueProperties::insuredAssociations),
+    INSURED_ASSOCIATIONS_FINAL(OneCStream.INSURED_ASSOCIATIONS, OneCQueueProperties::insuredAssociationsFinal);
 
     private final OneCStream stream;
     private final Function<OneCQueueProperties, String> nameProperty;
+
+    OneCQueue(Function<OneCQueueProperties, String> nameProperty) {
+        this.stream = OneCStream.valueOf(name());
+        this.nameProperty = nameProperty;
+    }
 
     OneCQueue(OneCStream stream, Function<OneCQueueProperties, String> nameProperty) {
         this.stream = stream;

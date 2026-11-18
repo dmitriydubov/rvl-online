@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Limit;
+import ru.projectx.datareference.entity.inbound.OneCStream;
 import ru.projectx.datareference.repository.database.DatabaseClockRepository;
 import ru.projectx.datareference.repository.inbound.BufferedTransfer;
 import ru.projectx.datareference.repository.inbound.InboundMessageRepository;
@@ -54,18 +55,19 @@ class AgedInboundMessagesTest {
     @Test
     void transfersBufferedLongerThan_asksForTransfersStartedBeforeDatabaseNowMinusAge() {
         List<BufferedTransfer> stuck = List.of(mock(BufferedTransfer.class));
-        when(repository.findTransfersBufferedBefore(NOW.minus(Duration.ofHours(1)), Limit.of(20))).thenReturn(stuck);
+        when(repository.findTransfersBufferedBefore(OneCStream.INSURED_ASSOCIATIONS, NOW.minus(Duration.ofHours(1)),
+                Limit.of(20))).thenReturn(stuck);
 
-        assertThat(agedMessages().transfersBufferedLongerThan(Duration.ofHours(1), 20)).isSameAs(stuck);
+        assertThat(agedMessages().transfersBufferedLongerThan(OneCStream.INSURED_ASSOCIATIONS, Duration.ofHours(1), 20)).isSameAs(stuck);
     }
 
     @Test
     void allTransfersBufferedLongerThan_asksWithoutLimit() {
         List<BufferedTransfer> stuck = List.of(mock(BufferedTransfer.class));
-        when(repository.findTransfersBufferedBefore(NOW.minus(Duration.ofHours(1)), Limit.unlimited()))
+        when(repository.findTransfersBufferedBefore(OneCStream.PRICE_LISTS, NOW.minus(Duration.ofHours(1)), Limit.unlimited()))
                 .thenReturn(stuck);
 
-        assertThat(agedMessages().allTransfersBufferedLongerThan(Duration.ofHours(1))).isSameAs(stuck);
+        assertThat(agedMessages().allTransfersBufferedLongerThan(OneCStream.PRICE_LISTS, Duration.ofHours(1))).isSameAs(stuck);
     }
 
     private AgedInboundMessages agedMessages() {

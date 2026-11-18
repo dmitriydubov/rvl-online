@@ -17,5 +17,7 @@ public record OneCQueueProperties(
         @NotBlank String lpuContacts,
         @NotBlank String priceLists,
         @NotBlank String priceListsFinal,
-        @NotBlank String contragentServices) {
+        @NotBlank String contragentServices,
+        @NotBlank String insuredAssociations,
+        @NotBlank String insuredAssociationsFinal) {
 }

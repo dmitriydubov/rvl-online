@@ -47,11 +47,6 @@ ru.projectx.datareference.config.OneCContractProperties#rvlContract             
 ru.projectx.datareference.config.OneCContractProperties#dmsProducts                 EmptyObjectReturnValsMutator       # filledValues...: dmsProducts() containsExactly "ЛичноеСтрахование"
 ru.projectx.datareference.config.OneCContractProperties#filled                      EmptyObjectReturnValsMutator       # filledValues...: rvlContract() contains "РВЛ", dmsProducts() containsExactly "ЛичноеСтрахование"
 
-# PriceListTransferMarkupTest (Ш16, PR #48): finalMessage_carriesCountersOfWholeTransfer and finalMessageWithZeroBatches_isStillFinal
-# (final-message return), batch_hasNoExpectedBatches_andCountsItsOwnRows (batch return) — each asserts
-# isEqualTo(new PriceListTransferMarkup(...)), which fails on a null actual. Verified by the coordinator 2026-10-05.
-ru.projectx.datareference.service.onec.PriceListTransferMarkup#of                   NullReturnValsMutator              # finalMessage_carries.../batch_hasNoExpectedBatches...: isEqualTo(new PriceListTransferMarkup(...)) on null
-
 # ImportPropertiesTest: parentWaitAgainstPayloadTtl_decidesTheStartup (parameterized: 30d/30d, 31d/30d, 2d/1d must fail
 # the start, 29d/30d and PT719H59M59S/30d must start; compareTo(payloadTtl) < 0).
 ru.projectx.datareference.config.ImportProperties#isParentWaitShorterThanPayloadTtl  ConditionalsBoundaryMutator         # [30d,30d,false]: <= 0 starts, getFailure() fails
@@ -65,14 +60,6 @@ ru.projectx.datareference.service.onec.ExpiredParentWait#lambda$of$*            
 # SANATORIUM, null)) fails on a null actual. Verified by the coordinator 2026-10-19.
 ru.projectx.datareference.service.onec.ExpiredParentWait#of                          NullReturnValsMutator              # waitingMessage_namesItsStreamAndParent: isEqualTo(...) on null
 
-# PriceListTransferMarkupTest (Ш59, PR #111). Запись PriceListTransferMarkup: какой мутант уронит JVM на redefineClasses,
-# меняется от прогона к прогону (прогон координатора на 4fd0dc2: cidOf, lambda$counter$ Empty, of EQUAL_ELSE; прогоны сессии — иные).
-ru.projectx.datareference.service.onec.PriceListTransferMarkup#lambda$counter$*  EmptyObjectReturnValsMutator         # counterWrittenAsText_isReadAsBefore: isEqualTo((CID, 2, 3)) gets (CID, 0, 0)
-ru.projectx.datareference.service.onec.PriceListTransferMarkup#lambda$counter$*  NullReturnValsMutator                # counterWrittenAsText_isReadAsBefore: unboxing null throws NullPointerException
-ru.projectx.datareference.service.onec.PriceListTransferMarkup#cidOf             NullReturnValsMutator                # finalMessage_carriesCountersOfWholeTransfer: isEqualTo((CID, 2, 3)) gets cid null
-ru.projectx.datareference.service.onec.PriceListTransferMarkup#of                RemoveConditionalMutator_EQUAL_ELSE  # finalMessage_carriesCountersOfWholeTransfer: isEqualTo((CID, 2, 3)) gets (CID, null, 0)
-ru.projectx.datareference.service.onec.PriceListTransferMarkup#of                RemoveConditionalMutator_EQUAL_IF    # batch_hasNoExpectedBatches_andCountsItsOwnRows: isEqualTo((CID, null, 2)) gets a final
-
 ru.projectx.datareference.config.LeadershipProperties#isLockTtlLongerThanHeartbeat  ConditionalsBoundaryMutator         # lockTtlNotLongerThanHeartbeat_failsStartup: 2s/2s starts
 ru.projectx.datareference.config.LeadershipProperties#isLockTtlLongerThanHeartbeat  RemoveConditionalMutator_ORDER_ELSE # defaults_holdTheLock...: defaults 30s/1s fail startup
 ru.projectx.datareference.config.LeadershipProperties#isLockTtlLongerThanHeartbeat  BooleanTrueReturnValsMutator        # lockTtlNotLongerThanHeartbeat_failsStartup: 2s/2s starts
@@ -85,3 +72,73 @@ ru.projectx.datareference.config.DatabaseSessionTimeouts#startupOptions         
 ru.projectx.datareference.config.DatabaseSessionTimeouts#lambda$startupOptions$*  EmptyObjectReturnValsMutator  # startupOptions_listEveryParameterInOrder: isEqualTo("-c lock_timeout=5s ...") gets "  "
 ru.projectx.datareference.config.DatabaseSessionTimeouts#withoutLockWait          NullReturnValsMutator         # withoutLockWait_disablesOnlyTheLockTimeout: lockTimeout() on null throws NPE; LeaderLockPoolsTest: NPE in every test
 ru.projectx.datareference.config.DatabaseSessionTimeouts#byParameter              EmptyObjectReturnValsMutator  # withoutLockWait_disablesOnlyTheLockTimeout: containsEntry("lock_timeout", "0") on {}
+
+# Ш91 (PR #302): records of the insured-association transfer and of the transfer assembly shared with the price lists.
+# Which mutant crashes the JVM on redefineClasses changes from run to run, so every mutant PIT makes in these records
+# is listed, each with the test and assertion that kill it. PriceListTransferMarkup was renamed TransferMarkup; of its
+# six lines four apply to the new code. Not listed, because PIT 1.22.1 with DEFAULTS makes no such mutant here:
+# TransferMarkup#of EQUAL_IF and TransferMarkup#lambda$counter$* NullReturnVals (an Integer return gets EmptyObject
+# instead). InsuredAssociationFilter#isEmpty passes Objects::isNull over an intersection type (LocalDate and UUID), so
+# javac makes lambda$isEmpty$0 for it. Checked by the coordinator on ba0b671: every line matches a mutant of the PIT
+# report, and no record mutant is left without a line; the mutants that crashed in the coordinator's run (filter
+# isEmpty, covers, allows, lambda$isEmpty$0, Row#policies, TransferMarkup#of, lambda$counter$0) were applied by hand
+# and the named tests failed; the rest were killed by PIT. Verified by the coordinator 2026-11-15.
+ru.projectx.datareference.entity.policy.InsuredAssociationFilter#isEmpty           BooleanFalseReturnValsMutator        # filterWithoutConstraints_isEmpty: isTrue() gets false
+ru.projectx.datareference.entity.policy.InsuredAssociationFilter#isEmpty           BooleanTrueReturnValsMutator         # filterWithAnyConstraint_isNotEmpty: isFalse() gets true
+ru.projectx.datareference.entity.policy.InsuredAssociationFilter#lambda$isEmpty$*  BooleanFalseReturnValsMutator        # filterWithoutConstraints_isEmpty: isTrue() gets false
+ru.projectx.datareference.entity.policy.InsuredAssociationFilter#lambda$isEmpty$*  BooleanTrueReturnValsMutator         # filterWithAnyConstraint_isNotEmpty: isFalse() gets true
+ru.projectx.datareference.entity.policy.InsuredAssociationFilter#covers            BooleanTrueReturnValsMutator         # filterConstrainingAnyDimensionWithAnotherValue_doesNotCoverTheRow: isFalse() gets true
+ru.projectx.datareference.entity.policy.InsuredAssociationFilter#covers            BooleanFalseReturnValsMutator        # filterConstrainingAnyDimensionWithTheRowValue_coversTheRow: isTrue() gets false
+ru.projectx.datareference.entity.policy.InsuredAssociationFilter#allows            RemoveConditionalMutator_EQUAL_ELSE  # ifnull always jumps: ...WithAnotherValue_doesNotCoverTheRow isFalse() gets true; ifeq always jumps: ...WithTheRowValue_coversTheRow isTrue() gets false
+ru.projectx.datareference.entity.policy.InsuredAssociationFilter#allows            BooleanTrueReturnValsMutator         # filterConstrainingAnyDimensionWithAnotherValue_doesNotCoverTheRow: isFalse() gets true
+ru.projectx.datareference.entity.policy.InsuredAssociation$Row#policies            EmptyObjectReturnValsMutator         # InsuredAssociationTest.row_namesThePolicyOfTheInsuredFirst: containsExactly(INSURED, RELATED) gets []
+ru.projectx.datareference.entity.policy.InsuredAssociation$Row#dimensions          NullReturnValsMutator                # fullFilterOfTheRow_coversIt_andEqualsItsDimensions: isEqualTo(full) gets null
+ru.projectx.datareference.service.onec.TransferMarkup#of                RemoveConditionalMutator_EQUAL_ELSE  # finalMessage_carriesCountersOfWholeTransfer: isEqualTo((CID, 2, 3)) gets (CID, null, 0)
+ru.projectx.datareference.service.onec.TransferMarkup#of                NullReturnValsMutator                # finalMessage_carries.../batch_hasNoExpectedBatches...: isEqualTo(...) gets null
+ru.projectx.datareference.service.onec.TransferMarkup#cidOf             NullReturnValsMutator                # finalMessage_carriesCountersOfWholeTransfer: isEqualTo((CID, 2, 3)) gets cid null
+ru.projectx.datareference.service.onec.TransferMarkup#counter           PrimitiveReturnsMutator              # finalMessage_carriesCountersOfWholeTransfer: isEqualTo((CID, 2, 3)) gets (CID, 0, 0)
+ru.projectx.datareference.service.onec.TransferMarkup#lambda$counter$*  EmptyObjectReturnValsMutator         # counterWrittenAsText_isReadAsBefore: isEqualTo((CID, 2, 3)) gets (CID, 0, 0)
+ru.projectx.datareference.service.onec.TransferMarkup#applyTo           VoidMethodCallMutator                # markup_putsMessageIntoBuffer: status isEqualTo(BUFFERED) gets NEW
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Rejected#fail                 EmptyObjectReturnValsMutator  # rejectedTransfer_failsEveryLatePartWithReason: containsExactly(lateFinal, lateBatch) gets []
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Closed#skip                   EmptyObjectReturnValsMutator  # closedTransfer_skipsEveryLatePartWithReason: containsExactly(lateBatch, lateFinal) gets []
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Closed#skip                   VoidMethodCallMutator         # closedTransfer_skipsEveryLatePartWithReason: status isEqualTo(SKIPPED) gets BUFFERED
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Mismatched#fail               EmptyObjectReturnValsMutator  # mismatchedTransfer_failsEveryMessageWithReason_finalMessageFirst: containsExactly(finalMessage, batch) gets []
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Assembled#markOutcome         EmptyObjectReturnValsMutator  # outcomeOfApplying_isTheOutcomeOfEveryMessage: containsExactly(finalMessage, batch) gets []
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Assembled#markAwaitingParent  EmptyObjectReturnValsMutator  # outcomeOfApplying_isTheOutcomeOfEveryMessage: containsExactly(waitingFinal, waitingBatch) gets []
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Assembled#markAwaitingParent  VoidMethodCallMutator         # outcomeOfApplying_isTheOutcomeOfEveryMessage: status isEqualTo(AWAITING_PARENT) gets BUFFERED
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Assembled#markProcessed       EmptyObjectReturnValsMutator  # assembledTransfer_marksEveryMessageProcessed_finalMessageFirst: containsExactly(finalMessage, batch) gets []
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Assembled#markProcessed       VoidMethodCallMutator         # assembledTransfer_marksEveryMessageProcessed_finalMessageFirst: status isEqualTo(PROCESSED) gets BUFFERED
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Assembled#markSkipped         EmptyObjectReturnValsMutator  # assembledTransfer_skipsEveryMessageWithReason_finalMessageFirst: containsExactly(finalMessage, batch) gets []
+ru.projectx.datareference.service.onec.CorrelatedTransfer$Assembled#markSkipped         VoidMethodCallMutator         # assembledTransfer_skipsEveryMessageWithReason_finalMessageFirst: status isEqualTo(SKIPPED) gets BUFFERED
+ru.projectx.datareference.service.metrics.InboundBacklog#empty                   NullReturnValsMutator                # emptyBacklog_hasNothingAndKeepsItsMoment: empty.statuses() on null throws NullPointerException
+ru.projectx.datareference.service.metrics.InboundBacklog#messages                PrimitiveReturnsMutator              # messages_areCountedForTheExactStreamAndStatus: isEqualTo(7) gets 0
+ru.projectx.datareference.service.metrics.InboundBacklog#lambda$messages$*       BooleanTrueReturnValsMutator         # messages_areCountedForTheExactStreamAndStatus: (POLICIES, NEW) isEqualTo(7) gets 21
+ru.projectx.datareference.service.metrics.InboundBacklog#lambda$messages$*       RemoveConditionalMutator_EQUAL_ELSE  # messages_areCountedForTheExactStreamAndStatus: isEqualTo(7) gets 0
+ru.projectx.datareference.service.metrics.InboundBacklog#oldestPending           EmptyObjectReturnValsMutator         # oldestPending_isTheEarliestOfNewAndRetryOnly: contains(OLDEST) gets empty
+ru.projectx.datareference.service.metrics.InboundBacklog#lambda$oldestPending$*  BooleanTrueReturnValsMutator         # oldestPending_isTheEarliestOfNewAndRetryOnly: contains(OLDEST) gets EPOCH of the FAILED count
+ru.projectx.datareference.service.metrics.InboundBacklog#lambda$oldestPending$*  RemoveConditionalMutator_EQUAL_ELSE  # oldestPending_isTheEarliestOfNewAndRetryOnly: contains(OLDEST) gets empty
+ru.projectx.datareference.service.onec.TransferRejection$TransferPart#markup                         EmptyObjectReturnValsMutator  # rejectedPart_remembersItsTransfer: transferPart().batchCount() isEqualTo(1) gets null
+ru.projectx.datareference.service.onec.TransferRejection$TransferPart#markupOrTransferOnly           NullReturnValsMutator         # rejectedPart_remembersItsTransfer: reject() throws NPE on applyTo of null
+ru.projectx.datareference.service.onec.TransferRejection$TransferPart#lambda$markupOrTransferOnly$*  NullReturnValsMutator         # finalMessageWithCounterBeyondInt_keepsItsOwnReason_andBufferedBatchPointsToIt: NPE on applyTo of null
+
+# Ш92 (PR #306): records of the insured's family reply (FamilyMember, RelationTypes) and the new Row#validOn of the
+# insured-association row; Policy$Details#toString is mutated whenever Policy changes. As for Ш91, every mutant PIT
+# makes in these records is listed: the step's final run crashed on none of them, the coordinator's run and CI on
+# 2e7e0d9 crashed on Row#dimensions and on two Row#validOn EQUAL_ELSE. EQUAL_ELSE replaces the jump with GOTO (PIT 1.22.1
+# RemoveConditionalMutator): in Row#validOn the isAfter jump always gives false, the ifnull jump gives true from the
+# first day on, the isBefore jump gives false whenever the end is set; in lambda$activeOn$* the equals jump always
+# gives false; in soleTypeOf the size jump always gives null. Checked by the coordinator on 2e7e0d9: every line
+# matches a mutant of the PIT report (BooleanFalse of the self-link lambda is not made by PIT and was checked by hand
+# for the wildcard), no record mutant is left without a line, and every mutant was applied by hand and the named tests
+# failed. Verified by the coordinator 2026-11-16.
+ru.projectx.datareference.dto.FamilyMember#of                                      NullReturnValsMutator                # FamilyMembersTest.member_carriesRequisitesOfThePolicyAndTheSoleTypeOfItsLink: containsExactly(member) gets [null]
+ru.projectx.datareference.entity.policy.InsuredAssociation$Row#validOn             BooleanTrueReturnValsMutator         # InsuredAssociationTest.row_isValidOnDay_fromItsFirstToItsLastDayInclusive: isEqualTo(false) gets true (day before the first, after the last, not started)
+ru.projectx.datareference.entity.policy.InsuredAssociation$Row#validOn             RemoveConditionalMutator_EQUAL_ELSE  # row_isValidOnDay_...: isAfter and isBefore jumps - isEqualTo(true) gets false; ifnull jump - day after the last, isEqualTo(false) gets true
+ru.projectx.datareference.entity.policy.Policy$Details#toString                    EmptyObjectReturnValsMutator         # PolicyTest.detailsText_leavesOutPersonalData_butNamesTheContract: contains(contract id) gets ""
+ru.projectx.datareference.service.policy.RelationTypes#activeOn                    NullReturnValsMutator                # RelationTypesTest.linkOfTheInsuredPolicyToItself_isLeftOut: relatedPolicies() on null
+ru.projectx.datareference.service.policy.RelationTypes#lambda$activeOn$*           BooleanFalseReturnValsMutator        # linkOfTheInsuredPolicyToItself_isLeftOut: containsExactly(SPOUSE) gets [] (either filter)
+ru.projectx.datareference.service.policy.RelationTypes#lambda$activeOn$*           BooleanTrueReturnValsMutator         # day filter: activeOn_keepsRelatedPoliciesOfRowsValidThatDayOnly containsExactly(SPOUSE) gets [FORMER, SPOUSE]; self-link filter: linkOfTheInsuredPolicyToItself_isLeftOut gets [INSURED, SPOUSE]
+ru.projectx.datareference.service.policy.RelationTypes#lambda$activeOn$*           RemoveConditionalMutator_EQUAL_ELSE  # linkOfTheInsuredPolicyToItself_isLeftOut: containsExactly(SPOUSE) gets []
+ru.projectx.datareference.service.policy.RelationTypes#lambda$new$*                EmptyObjectReturnValsMutator         # soleType_isTheOnlyTypeValidThatDay_howeverManyRowsCoverIt: isEqualTo(TYPE) gets null
+ru.projectx.datareference.service.policy.RelationTypes#relatedPolicies             EmptyObjectReturnValsMutator         # linkOfTheInsuredPolicyToItself_isLeftOut: containsExactly(SPOUSE) gets []
+ru.projectx.datareference.service.policy.RelationTypes#soleTypeOf                  RemoveConditionalMutator_EQUAL_ELSE  # soleType_isTheOnlyTypeValidThatDay_howeverManyRowsCoverIt: isEqualTo(TYPE) gets null

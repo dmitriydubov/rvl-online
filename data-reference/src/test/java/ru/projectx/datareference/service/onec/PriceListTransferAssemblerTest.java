@@ -64,7 +64,7 @@ class PriceListTransferAssemblerTest {
     private PriceListFinalizationRepository finalizations;
 
     @Mock
-    private PriceTransferPartsReader partsReader;
+    private TransferPartsReader partsReader;
 
     private final List<InboundMessage> correlated = new ArrayList<>();
 
@@ -489,11 +489,11 @@ class PriceListTransferAssemblerTest {
                 mock(DatabaseClockRepository.class),
                 new InboundTransitionMetrics(meters), new FinalRejectionJournal(), List.of());
         PriceTransferOrder order = new PriceTransferOrder(finalizations, repository);
-        PriceListReplacement replacement = new PriceListReplacement(priceListMapper, order, json, inboundMessageService);
-        return new PriceListTransferAssembler(inboundMessageService, priceListMapper,
-                new PriceTransferServiceLock(repository, finalizations),
-                new PriceTransferPartsInAdvance(partsReader, json),
-                new PriceTransferConclusion(inboundMessageService, replacement, clock));
+        PriceListReplacement replacement = new PriceListReplacement(priceListMapper, order, json);
+        TransferAssembly assembly = new TransferAssembly(inboundMessageService,
+                new TransferPartsInAdvance(partsReader, json), new TransferConclusion(inboundMessageService, clock));
+        return new PriceListTransferAssembler(assembly, priceListMapper,
+                new PriceTransferServiceLock(repository, finalizations), replacement);
     }
 
     private static String batchData(String... rows) {

@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import ru.projectx.datareference.config.ImportProperties;
 import ru.projectx.datareference.entity.inbound.OneCStream;
+import ru.projectx.datareference.entity.inbound.ParentKind;
 import ru.projectx.datareference.service.metrics.ParentWaitMetrics;
 import ru.projectx.datareference.service.onec.ExpiredParentWait;
 import ru.projectx.datareference.service.onec.ParentWaitExpiry;
@@ -19,6 +20,12 @@ import ru.projectx.datareference.service.onec.ParentWaitExpiry;
 public class OverdueParentWaits {
 
     private static final Logger log = LoggerFactory.getLogger(OverdueParentWaits.class);
+    private static final Map<OneCStream, String> TRANSFER_TITLES = Map.of(
+            OneCStream.PRICE_LISTS, "прайса",
+            OneCStream.INSURED_ASSOCIATIONS, "связей застрахованных");
+    private static final Map<ParentKind, String> AWAITED_TITLES = Map.of(
+            ParentKind.CONTRAGENT_SERVICE, "услуги",
+            ParentKind.POLICY, "полиса");
 
     private final ParentWaitExpiry expiry;
     private final ParentWaitMetrics metrics;
@@ -47,9 +54,13 @@ public class OverdueParentWaits {
                 .filter(message -> message.transfer() != null)
                 .collect(Collectors.groupingBy(message -> Objects.requireNonNull(message.transfer()),
                         LinkedHashMap::new, Collectors.toList()));
-        transfers.forEach((transfer, parts) -> log.error(
-                "передача прайса {} не дождалась услуги {} за срок ожидания {}: отклонено сообщений {}",
-                transfer, parts.getFirst().parent().id(), properties.parentWaitTimeout(), parts.size()));
+        transfers.forEach((transfer, parts) -> reportTransfer(transfer, parts.getFirst(), parts.size()));
+    }
+
+    private void reportTransfer(UUID transfer, ExpiredParentWait part, int parts) {
+        log.error("передача {} {} не дождалась {} {} за срок ожидания {}: отклонено сообщений {}",
+                TRANSFER_TITLES.get(part.stream()), transfer, AWAITED_TITLES.get(part.parent().kind()),
+                part.parent().id(), properties.parentWaitTimeout(), parts);
     }
 
     private void reportStreams(List<ExpiredParentWait> expired) {

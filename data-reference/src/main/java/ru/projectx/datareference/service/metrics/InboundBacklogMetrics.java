@@ -26,6 +26,7 @@ public class InboundBacklogMetrics implements MeterBinder {
     static final String MESSAGES = "onec.inbound.messages";
     static final String OLDEST_PENDING = "onec.inbound.pending.oldest.age";
     static final String STUCK_TRANSFERS = "onec.price.transfers.stuck";
+    static final String STUCK_ASSOCIATION_TRANSFERS = "onec.insured.association.transfers.stuck";
     static final String OVERDUE_PAYLOADS = "onec.retention.overdue.payloads";
     static final String OVERDUE_QUARANTINE_BODIES = "onec.retention.overdue.quarantine.bodies";
     static final String OVERDUE_POLICIES = "policies.retention.overdue.personal.data";
@@ -93,7 +94,10 @@ public class InboundBacklogMetrics implements MeterBinder {
             bindStream(target, stream);
         }
         gauge(target, STUCK_TRANSFERS, "Передачи прайсов, которые ждут своих частей дольше порога тревоги",
-                current -> current.stuckTransfers());
+                current -> current.stuckTransfers().priceLists());
+        gauge(target, STUCK_ASSOCIATION_TRANSFERS,
+                "Передачи связей застрахованных, которые ждут своих частей дольше порога тревоги",
+                current -> current.stuckTransfers().insuredAssociations());
         gauge(target, OVERDUE_PAYLOADS, "Тела сообщений с ПДн старше срока хранения, ещё не стёртые",
                 current -> current.overdue().payloads());
         gauge(target, OVERDUE_QUARANTINE_BODIES, "Тела карантинных сообщений старше срока хранения, ещё не стёртые",

@@ -42,6 +42,9 @@ class MappedStreamHandlerTest {
     @Mock
     private SupersededParentWaits supersededWaits;
 
+    @Mock
+    private ParentArrivals parentArrivals;
+
     private final ObjectNode data = JsonMapper.builder().build().createObjectNode().put("code", "A00");
 
     @Test
@@ -73,6 +76,25 @@ class MappedStreamHandlerTest {
 
         verify(inboundMessageService).markProcessed(MESSAGE_ID);
         verify(supersededWaits).closeOlderThan(message.receipt(), RECORD, "применено");
+    }
+
+    @Test
+    void appliedMessage_announcesItsRecordAsArrivedParent() {
+        when(mapper.apply(data)).thenReturn(ImportResult.applied());
+        when(mapper.stream()).thenReturn(OneCStream.POLICIES);
+
+        handler().handle(message(), data);
+
+        verify(parentArrivals).arrived(OneCStream.POLICIES, data);
+    }
+
+    @Test
+    void skippedMessage_announcesNoArrival() {
+        when(mapper.apply(data)).thenReturn(ImportResult.skipped("не санаторий"));
+
+        handler().handle(message(), data);
+
+        verifyNoInteractions(parentArrivals);
     }
 
     @Test
@@ -124,7 +146,7 @@ class MappedStreamHandlerTest {
     }
 
     private MappedStreamHandler handler() {
-        return new MappedStreamHandler(mapper, inboundMessageService, supersededWaits);
+        return new MappedStreamHandler(mapper, inboundMessageService, supersededWaits, parentArrivals);
     }
 
     private static InboundMessage message() {

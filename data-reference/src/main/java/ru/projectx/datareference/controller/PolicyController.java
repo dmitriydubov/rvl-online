@@ -45,14 +45,18 @@ public class PolicyController {
         return policies.byExternalId(externalId);
     }
 
-    @GetMapping(path = "/policies", params = {NUMBER, "!" + EXTERNAL_ID, "!" + LEGACY_CONTRACT_ID})
+    @GetMapping(path = "/policies",
+            params = {NUMBER, CONTRACT_EXTERNAL_ID, "!" + EXTERNAL_ID, "!" + LEGACY_CONTRACT_ID})
     public PolicyResponse policyByNumber(
             @RequestParam String number, @RequestParam(CONTRACT_EXTERNAL_ID) UUID contractExternalId) {
 
-        if (number.isBlank()) {
-            throw new InvalidRequestException(NUMBER, RequestErrorAdvice.REQUIRED_PARAMETER);
-        }
-        return policies.byNumber(number, contractExternalId);
+        return policies.byNumber(RequiredText.of(NUMBER, number), contractExternalId);
+    }
+
+    @GetMapping(path = "/policies",
+            params = {NUMBER, "!" + CONTRACT_EXTERNAL_ID, "!" + EXTERNAL_ID, "!" + LEGACY_CONTRACT_ID})
+    public PolicyResponse policyByNumberInAnyContract(@RequestParam String number) {
+        return policies.byNumberInAnyContract(RequiredText.of(NUMBER, number));
     }
 
     @GetMapping(path = "/policies",
@@ -75,7 +79,7 @@ public class PolicyController {
 
     @GetMapping("/policies")
     public PolicyResponse policyWithoutKey() {
-        throw new InvalidRequestException(EXTERNAL_ID, "нужен external_id либо number вместе с contract_external_id");
+        throw new InvalidRequestException(EXTERNAL_ID, "нужен external_id либо number");
     }
 
     @GetMapping("/policies/{id}/contract-view")

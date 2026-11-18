@@ -30,7 +30,9 @@ public class OneCBroker {
         this.admin = admin;
         this.queuesByStream = Map.of(
                 "договоры страхования", queues.insuranceContracts(),
-                "полисы", queues.policies());
+                "полисы", queues.policies(),
+                "связи застрахованных", queues.insuredAssociations(),
+                "связи застрахованных, финальные", queues.insuredAssociationsFinal());
     }
 
     public String queueOf(String stream) {

@@ -10,4 +10,6 @@ public interface PolicyReads {
     PolicyResponse byExternalId(UUID externalId);
 
     PolicyResponse byNumber(String number, UUID contractExternalId);
+
+    PolicyResponse byNumberInAnyContract(String number);
 }

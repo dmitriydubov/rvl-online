@@ -6,9 +6,11 @@ import io.cucumber.java.ru.Дано;
 import io.cucumber.java.ru.Тогда;
 import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.UnaryOperator;
 import org.jspecify.annotations.Nullable;
 import ru.projectx.datareference.config.ImportProperties;
+import tools.jackson.databind.json.JsonMapper;
 
 public class OneCRetentionSteps {
 
@@ -18,6 +20,8 @@ public class OneCRetentionSteps {
             "меньше", ttl -> ttl.minus(HOUR));
     private static final Map<String, Boolean> ERASED = Map.of("стёрты", true, "сохранены", false);
     private static final Map<String, Boolean> BODY_ERASED = Map.of("стёрто", true, "сохранено", false);
+
+    private static final JsonMapper JSON = JsonMapper.shared();
 
     private final OneCInbox inbox;
     private final ImportProperties properties;
@@ -32,7 +36,7 @@ public class OneCRetentionSteps {
     public void lastMessageAgedAroundTtl(String moreOrLess) {
         assertThat(AGE_AROUND_TTL).as("давность, которую умеет изображать шаг").containsKey(moreOrLess);
         beforeRetention = inbox.last();
-        inbox.ageLast(AGE_AROUND_TTL.get(moreOrLess).apply(properties.payloadTtl()));
+        inbox.ageFromLast(AGE_AROUND_TTL.get(moreOrLess).apply(properties.payloadTtl()));
     }
 
     @Тогда("тело и причина отказа последнего сообщения {word}")
@@ -63,6 +67,21 @@ public class OneCRetentionSteps {
         else {
             assertThat(after.payload()).as("тело последнего сообщения").isNotNull()
                     .isEqualTo(rowBeforeRetention().payload());
+        }
+    }
+
+    @Тогда("тело сообщения 1С:УСК {string} {word}")
+    public void bodyOf(String messageId, String state) {
+        assertThat(BODY_ERASED).as("состояния тела, которые знает шаг").containsKey(state);
+        String payload = inbox.row(UUID.fromString(messageId)).payload();
+
+        if (BODY_ERASED.get(state)) {
+            assertThat(payload).as("тело сообщения %s", messageId).isNull();
+        }
+        else {
+            assertThat(payload).as("тело сообщения %s", messageId).isNotNull();
+            assertThat(JSON.readTree(payload)).as("тело сообщения %s — присланный конверт целиком", messageId)
+                    .isEqualTo(JSON.readTree(inbox.envelopeOf(UUID.fromString(messageId))));
         }
     }
 

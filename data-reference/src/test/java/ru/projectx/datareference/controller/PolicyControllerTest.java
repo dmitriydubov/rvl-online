@@ -33,7 +33,8 @@ class PolicyControllerTest {
     private static final UUID POLICY_EXTERNAL_ID = UUID.fromString("9011c000-0000-4000-8000-000000000002");
     private static final UUID CONTRACT_EXTERNAL_ID = UUID.fromString("9011c000-0000-4000-8000-000000000004");
     private static final String POLICY_NUMBER = "П-0001";
-    private static final String NO_KEY_REASON = "нужен external_id либо number вместе с contract_external_id";
+    private static final String POLICY_NUMBER_IN_URI = "P-0001";
+    private static final String NO_KEY_REASON = "нужен external_id либо number";
     private static final String NO_EXTERNAL_ID_REASON = "нужен external_id";
     private static final String MISSING_VALUE_REASON = "обязательный параметр";
 
@@ -97,10 +98,37 @@ class PolicyControllerTest {
     }
 
     @Test
-    void numberWithoutContract_isMissingContractExternalId() {
+    void numberWithoutContract_isLookupByNumberInAnyContract() {
+        when(policies.byNumberInAnyContract(POLICY_NUMBER)).thenReturn(policy());
+
         MvcTestResult result = mvc.get().uri(POLICIES + "?number={number}", POLICY_NUMBER).exchange();
 
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.id").isEqualTo(POLICY_ID.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "%20%20"})
+    void blankNumberWithoutContract_isMissingNumber_withoutAskingService(String number) {
+        MvcTestResult result = mvc.get().uri(URI.create(POLICIES + "?number=" + number)).exchange();
+
         assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.error.code").isEqualTo("VALIDATION_ERROR");
+        assertThat(result).bodyJson().extractingPath("$.error.details").asArray().hasSize(1);
+        assertThat(result).bodyJson().extractingPath("$.error.details[0].field").isEqualTo("number");
+        assertThat(result).bodyJson().extractingPath("$.error.details[0].reason").isEqualTo(MISSING_VALUE_REASON);
+        verifyNoInteractions(policies, policySearch, contractViews);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "%20%20"})
+    void numberWithBlankContract_isMissingContractExternalId_notLookupInAnyContract(String contract) {
+        MvcTestResult result = mvc.get()
+                .uri(URI.create(POLICIES + "?number=" + POLICY_NUMBER_IN_URI + "&contract_external_id=" + contract))
+                .exchange();
+
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.error.details").asArray().hasSize(1);
         assertThat(result).bodyJson().extractingPath("$.error.details[0].field").isEqualTo("contract_external_id");
         assertThat(result).bodyJson().extractingPath("$.error.details[0].reason").isEqualTo(MISSING_VALUE_REASON);
         verifyNoInteractions(policies, policySearch, contractViews);

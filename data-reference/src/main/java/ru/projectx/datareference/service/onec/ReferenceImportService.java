@@ -34,13 +34,14 @@ public class ReferenceImportService {
             List<StreamHandler> dedicatedHandlers,
             InboundMessageService inboundMessageService,
             SupersededParentWaits supersededWaits,
+            ParentArrivals parentArrivals,
             ObjectMapper json,
             ApplicationEventPublisher events,
             LeadershipFence leadership) {
 
         this.handlers = Stream.concat(
                         mappers.stream().map(mapper ->
-                                new MappedStreamHandler(mapper, inboundMessageService, supersededWaits)),
+                                new MappedStreamHandler(mapper, inboundMessageService, supersededWaits, parentArrivals)),
                         dedicatedHandlers.stream())
                 .collect(Collectors.toUnmodifiableMap(StreamHandler::stream, Function.identity()));
         this.inboundMessageService = inboundMessageService;

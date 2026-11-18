@@ -116,6 +116,20 @@ class OverdueParentWaitsTest {
     }
 
     @Test
+    void expiredAssociationTransfer_namesTheAwaitedPolicy() {
+        AwaitedParent policy = new AwaitedParent(ParentKind.POLICY, UUID.fromString("11111111-2222-4333-8444-555555555506"));
+        ExpiredParentWait part = new ExpiredParentWait(OneCStream.INSURED_ASSOCIATIONS, policy, CID);
+        when(expiry.expireOverdue()).thenReturn(List.of(part, part));
+
+        overdue.rejectAndReport();
+
+        assertThat(logged.list).singleElement().extracting(ILoggingEvent::getFormattedMessage)
+                .isEqualTo("передача связей застрахованных " + CID + " не дождалась полиса " + policy.id()
+                        + " за срок ожидания PT24H: отклонено сообщений 2");
+        assertThat(expired("INSURED_ASSOCIATIONS")).isEqualTo(2);
+    }
+
+    @Test
     void nothingExpired_writesNothing() {
         overdue.rejectAndReport();
 

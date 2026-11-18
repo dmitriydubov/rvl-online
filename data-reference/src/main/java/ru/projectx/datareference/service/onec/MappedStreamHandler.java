@@ -16,13 +16,15 @@ class MappedStreamHandler implements StreamHandler {
     private final StreamMapper mapper;
     private final InboundMessageService inboundMessageService;
     private final SupersededParentWaits supersededWaits;
+    private final ParentArrivals parentArrivals;
 
-    MappedStreamHandler(
-            StreamMapper mapper, InboundMessageService inboundMessageService, SupersededParentWaits supersededWaits) {
+    MappedStreamHandler(StreamMapper mapper, InboundMessageService inboundMessageService,
+            SupersededParentWaits supersededWaits, ParentArrivals parentArrivals) {
 
         this.mapper = mapper;
         this.inboundMessageService = inboundMessageService;
         this.supersededWaits = supersededWaits;
+        this.parentArrivals = parentArrivals;
     }
 
     @Override
@@ -36,6 +38,7 @@ class MappedStreamHandler implements StreamHandler {
         return switch (mapper.apply(data)) {
             case ImportResult.Applied ignored -> {
                 inboundMessageService.markProcessed(messageId);
+                parentArrivals.arrived(mapper.stream(), data);
                 yield closingOlderWaits(message, data, APPLIED, ImportOutcome.applied());
             }
             case ImportResult.Skipped skipped -> {

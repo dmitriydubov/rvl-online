@@ -30,6 +30,17 @@ public class OneCPriceTransferSteps {
                 UUID.fromString(messageId), UUID.fromString(cid), service, defect));
     }
 
+    @Дано("1С:УСК прислала пакет {string} передачи прайса {string} по услуге {string} без массива строк: {string}")
+    public void batchWithoutRowsArraySent(String messageId, String cid, String service, String defect) {
+        inbox.receive(OneCPriceTransferMessages.batchWithoutRowsArray(
+                UUID.fromString(messageId), UUID.fromString(cid), service, defect));
+    }
+
+    @Дано("1С:УСК прислала пакет {string} передачи прайса {string} по услуге {string} с пустым массивом строк")
+    public void batchWithEmptyRowsArraySent(String messageId, String cid, String service) {
+        batchSent(messageId, cid, service, List.of());
+    }
+
     @Дано("1С:УСК прислала пакет {string} прайса по услуге {string} без идентификатора передачи:")
     public void batchWithoutTransferSent(String messageId, String service, List<Map<String, String>> rows) {
         inbox.receive(OneCPriceTransferMessages.batchWithoutTransfer(UUID.fromString(messageId), service, rows));

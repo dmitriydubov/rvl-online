@@ -180,3 +180,5 @@ projectx:
       price-lists: ${ONEC_QUEUE_PRICE_LISTS:1c-usk_to_rvl-online_pricelists-contragents-changes}
       price-lists-final: ${ONEC_QUEUE_PRICE_LISTS_FINAL:1c-usk_to_rvl-online_pricelists-contragents-changes-final}
       contragent-services: ${ONEC_QUEUE_CONTRAGENT_SERVICES:1c-usk_to_rvl-online_contragents-services-changes}
+      insured-associations: ${ONEC_QUEUE_INSURED_ASSOCIATIONS:1c-usk_to_rvl-online_insured-association-changes}
+      insured-associations-final: ${ONEC_QUEUE_INSURED_ASSOCIATIONS_FINAL:1c-usk_to_rvl-online_insured-association-changes-final}

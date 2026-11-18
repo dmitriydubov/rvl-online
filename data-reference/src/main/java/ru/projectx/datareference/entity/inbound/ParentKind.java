@@ -4,7 +4,8 @@ public enum ParentKind {
 
     CONTRAGENT("контрагент"),
     LPU_CONTRACT("договор ЛПУ"),
-    CONTRAGENT_SERVICE("услуга");
+    CONTRAGENT_SERVICE("услуга"),
+    POLICY("полис");
 
     private final String title;
 

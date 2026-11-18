@@ -8,7 +8,8 @@ import java.util.Set;
 import ru.projectx.datareference.entity.inbound.InboundStatus;
 import ru.projectx.datareference.entity.inbound.OneCStream;
 
-public record InboundBacklog(List<StatusCount> statuses, long stuckTransfers, Overdue overdue, Instant takenAt) {
+public record InboundBacklog(
+        List<StatusCount> statuses, StuckTransfers stuckTransfers, Overdue overdue, Instant takenAt) {
 
     private static final Set<InboundStatus> PENDING = Set.of(InboundStatus.NEW, InboundStatus.RETRY);
 
@@ -17,7 +18,7 @@ public record InboundBacklog(List<StatusCount> statuses, long stuckTransfers, Ov
     }
 
     public static InboundBacklog empty(Instant takenAt) {
-        return new InboundBacklog(List.of(), 0, new Overdue(0, 0, 0), takenAt);
+        return new InboundBacklog(List.of(), new StuckTransfers(0, 0), new Overdue(0, 0, 0), takenAt);
     }
 
     public long messages(OneCStream stream, InboundStatus status) {
@@ -35,6 +36,9 @@ public record InboundBacklog(List<StatusCount> statuses, long stuckTransfers, Ov
     }
 
     public record StatusCount(OneCStream stream, InboundStatus status, long messages, Instant oldestReceivedAt) {
+    }
+
+    public record StuckTransfers(long priceLists, long insuredAssociations) {
     }
 
     public record Overdue(long payloads, long quarantineBodies, long policies) {

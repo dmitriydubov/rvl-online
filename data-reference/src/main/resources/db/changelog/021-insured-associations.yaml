@@ -1,0 +1,108 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 021-insured-associations
+      author: rvl-online
+      comment: >
+        Связи застрахованных из 1С:УСК: кто чей родственник. Строка — одна запись регистра 1С: полис застрахованного,
+        полис связанного застрахованного, тип связи и срок. Полисы и тип связи хранятся GUID'ами 1С без внешних
+        ключей: связь может прийти раньше полиса, а справочника типов связи у сервиса нет. Записи одной пары с разным
+        началом хранятся отдельно: связь действует на дату, если её покрывает хотя бы одна запись, последний день
+        включительно. Пустое окончание — бессрочная связь. ФИО связанного застрахованного из сообщения не хранится:
+        оно уже есть в полисе. Уникальность — по четырём измерениям регистра, как в 1С.
+      changes:
+        - createTable:
+            tableName: insured_associations
+            columns:
+              - column: { name: id, type: uuid, constraints: { primaryKey: true, primaryKeyName: pk_insured_associations, nullable: false } }
+              - column: { name: insured_policy_external_id, type: uuid, constraints: { nullable: false } }
+              - column: { name: related_policy_external_id, type: uuid, constraints: { nullable: false } }
+              - column: { name: relation_type_external_id, type: uuid, constraints: { nullable: false } }
+              - column: { name: valid_from, type: date, constraints: { nullable: false } }
+              - column: { name: valid_to, type: date }
+              - column: { name: created_at, type: timestamptz, constraints: { nullable: false } }
+        - addUniqueConstraint:
+            tableName: insured_associations
+            constraintName: uq_insured_associations_record
+            columnNames: insured_policy_external_id, related_policy_external_id, relation_type_external_id, valid_from
+        - createIndex:
+            tableName: insured_associations
+            indexName: idx_insured_associations_related_policy
+            columns:
+              - column: { name: related_policy_external_id }
+      rollback:
+        - dropTable:
+            tableName: insured_associations
+
+  - changeSet:
+      id: 021-insured-association-finalization
+      author: rvl-online
+      comment: >
+        Связи застрахованных приходят передачами, и записи по отбору определяет передача, финальное сообщение которой
+        принято последним, а не та, что собралась последней. Здесь по строке на применённую передачу лежат её
+        финальное сообщение и отбор: измерения, которых в отборе нет, пусты. Передача не применяется, если уже
+        применена передача с более поздним финальным сообщением и пересекающимся отбором. Момент приёма и
+        идентификатор передачи читаются из строки сырья финального сообщения и не копируются.
+      changes:
+        - createTable:
+            tableName: insured_association_finalization
+            columns:
+              - column:
+                  name: final_message_id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_insured_association_finalization
+                    nullable: false
+                    foreignKeyName: fk_insured_association_finalization_final_message
+                    references: 'inbound_message(message_id)'
+              - column: { name: valid_from, type: date }
+              - column: { name: insured_policy_external_id, type: uuid }
+              - column: { name: related_policy_external_id, type: uuid }
+              - column: { name: relation_type_external_id, type: uuid }
+      rollback:
+        - dropTable:
+            tableName: insured_association_finalization
+
+  - changeSet:
+      id: 021-retention-index-insured-associations
+      author: rvl-online
+      comment: >
+        Тело сообщения связей застрахованных содержит ФИО связанного застрахованного, поэтому по сроку хранения оно
+        стирается при любом статусе, как тела полисов и договоров страхования. Индекс под стирание пересоздаётся с тем
+        же именем, условие записано так же, как в запросах стирания и подсчёта.
+      changes:
+        - sql:
+            sql: drop index idx_inbound_message_retention
+        - sql:
+            sql: >
+              create index idx_inbound_message_retention on inbound_message (received_at)
+              where payload is not null
+                and (stream in ('POLICIES', 'INSURANCE_CONTRACTS', 'INSURED_ASSOCIATIONS') or status = 'SKIPPED'
+                     or (status = 'FAILED' and parent_wait_since is not null))
+      rollback:
+        - sql:
+            sql: drop index idx_inbound_message_retention
+        - sql:
+            sql: >
+              create index idx_inbound_message_retention on inbound_message (received_at)
+              where payload is not null
+                and (stream in ('POLICIES', 'INSURANCE_CONTRACTS') or status = 'SKIPPED'
+                     or (status = 'FAILED' and parent_wait_since is not null))
+
+  - changeSet:
+      id: 021-awaiting-parent-index
+      author: rvl-online
+      comment: >
+        Применённый полис возвращает в разбор сообщения, которые ждали именно его: ищет ожидающие строки по виду и GUID
+        родителя. Частичный индекс по GUID ожидаемого родителя среди ожидающих строк, чтобы этот поиск на каждом полисе
+        не перебирал все ожидающие сообщения. Сырым sql: у createIndex в Liquibase нет условия частичного индекса
+        (docs.liquibase.com, change-types/create-index).
+      changes:
+        - sql:
+            sql: >
+              create index idx_inbound_message_awaited_parent on inbound_message (awaited_parent_id)
+              where status = 'AWAITING_PARENT'
+      rollback:
+        - sql:
+            sql: drop index idx_inbound_message_awaited_parent

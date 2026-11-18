@@ -18,6 +18,7 @@ public interface ParentWaitRepository extends org.springframework.data.repositor
               from InboundMessage message
              where message.status = AWAITING_PARENT
                and message.parentWaitSince <= :deadline
+               and (message.correlationId is null or message.batchCount is not null)
                and not exists (select lpu.id
                                  from Lpu lpu
                                 where message.awaitedParentKind = CONTRAGENT
@@ -33,7 +34,8 @@ public interface ParentWaitRepository extends org.springframework.data.repositor
                and not exists (select stranger.externalId
                                  from ForeignReference stranger
                                 where stranger.externalId = message.awaitedParentId
-                                  and stranger.kind = message.awaitedParentKind)
+                                  and stranger.kind = message.awaitedParentKind
+                                  and message.awaitedParentKind <> POLICY)
              order by message.receivedAt
             """)
     List<InboundMessage> findExpiredUnresolved(@Param("deadline") Instant deadline, Limit limit);
