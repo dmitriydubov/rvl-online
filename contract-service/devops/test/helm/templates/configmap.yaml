@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.app.name }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.app.name }}
+data:
+  SERVER_PORT: "{{ .Values.app.port }}"
+  MANAGEMENT_PORT: "{{ .Values.app.managementPort }}"
+
+  DB_URL: "jdbc:postgresql://{{ required "postgres.host is empty: set the database host in values.yaml" .Values.postgres.host }}:{{ required "postgres.port is empty: set the database port in values.yaml" .Values.postgres.port }}/{{ required "postgres.database is empty: set the database name in values.yaml" .Values.postgres.database }}?logServerErrorDetail=false"
+  DB_USERNAME: "{{ required "postgres.username is empty: set the database user in values.yaml" .Values.postgres.username }}"
+
+  RABBITMQ_INTERNAL_LISTENER_AUTO_STARTUP: "{{ .Values.rabbitmq.internal.listenerAutoStartup }}"
+
+  RABBITMQ_ONEC_HOST: "{{ .Values.rabbitmq.onec.host }}"
+  RABBITMQ_ONEC_PORT: "{{ .Values.rabbitmq.onec.port }}"
+  RABBITMQ_ONEC_VHOST: "{{ .Values.rabbitmq.onec.virtualHost }}"
+  RABBITMQ_ONEC_USERNAME: "{{ .Values.rabbitmq.onec.username }}"
+  RABBITMQ_ONEC_SSL_ENABLED: "{{ .Values.rabbitmq.onec.ssl.enabled }}"
+  {{- if .Values.rabbitmq.onec.ssl.enabled }}
+  RABBITMQ_ONEC_SSL_VALIDATE_CERTIFICATE: "{{ .Values.rabbitmq.onec.ssl.validateCertificate }}"
+  RABBITMQ_ONEC_SSL_VERIFY_HOSTNAME: "{{ .Values.rabbitmq.onec.ssl.verifyHostname }}"
+  {{- end }}
+
+  REFERENCE_URL: "{{ .Values.reference.url }}"
+
+  S3_ENDPOINT: "{{ .Values.s3.endpoint }}"
+  S3_REGION: "{{ .Values.s3.region }}"
+  S3_BUCKET: "{{ .Values.s3.bucket }}"
+
+  PAYMENT_ENABLED: "{{ .Values.payment.enabled }}"
+
+  LOGGING_LEVEL_ROOT: "{{ .Values.logging.root }}"
+
+  JDK_JAVA_OPTIONS: "{{ .Values.jvm.options }}"

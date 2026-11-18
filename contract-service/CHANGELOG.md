@@ -16,6 +16,10 @@
 
 ### Добавлено
 
+- Выкатка на тестовый стенд в k3s: скрипт `devops/test/deploy.sh` и Helm-чарт `devops/test/helm` (одна реплика, плавная
+  выкатка, пробы `/readyz` и `/livez`, ConfigMap с настройками, Secret с паролями и ключами вручную, ingress для
+  `/internal/v1/requests` и `/internal/v1/contracts`). Порядок выкатки и ограничения стенда — `docs/operations.md`,
+  «Тестовый стенд в k3s».
 - Оплата договора КМ через сервис управления заказами (Ordering), счёт и события оплаты. Акцепт оферты принимает адрес
   электронной почты плательщика (поле `email`, при включённой оплате обязательно; адрес не по формату — отказ 400 по
   полю `email`); адрес хранится только до счёта и в журнал не попадает. Когда Ordering подтверждает документ, сервис
@@ -365,6 +369,11 @@
 
 ### Перенос
 
+- **Тестовый стенд:** файлы `devops/test/deploy.sh` и `devops/test/helm/` новые, существующие не менялись. Перед первой
+  выкаткой: значения базы `postgres.host`, `postgres.port`, `postgres.database`, `postgres.username` в `values.yaml`
+  (пусты, без них чарт не рисуется), Secret `contract-service-secret` (`DB_PASSWORD`, `RABBITMQ_INTERNAL_PASSWORD`,
+  `RABBITMQ_ONEC_PASSWORD`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`), сертификат центра сертификации брокера 1С:УСК в `certs/`.
+  Новых зависимостей нет; значения стенда — `docs/operations.md`.
 - **Переменные:** новая обязательная `PAYMENT_ENABLED` без умолчания (`true` или `false`) — без неё сервис не стартует.
   При `true` обязательны `ORDERING_URL`, `ORDERING_PRODUCT`, `ORDERING_CHANNEL`,
   `ORDERING_TOKEN_URI`, `ORDERING_TOKEN_CLIENT_ID`, `ORDERING_TOKEN_CLIENT_SECRET` (секрет — в секретах развёртывания),

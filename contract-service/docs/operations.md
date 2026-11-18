@@ -323,6 +323,103 @@ data-reference должен быть поднят раньше: на машин�
 доверяет Nexus при сборке. В слои образа они не попадают. Тесты при сборке образа не запускаются: им нужен Docker,
 их прогоняет CI до сборки образа.
 
+### Тестовый стенд в k3s (`devops/test/`)
+
+Скрипт `devops/test/deploy.sh <тег>` собирает образ из `Dockerfile` модуля и выкатывает Helm-чарт `devops/test/helm` в
+namespace `rvl-test`, одной репликой. Docker на машине стенда нет: `nerdctl` собирает образ прямо в containerd k3s.
+
+```shell
+sudo ./devops/test/deploy.sh v1
+```
+
+**Перед первой выкаткой** нужны три вещи:
+
+1. Значения базы в `devops/test/helm/values.yaml`: `postgres.host`, `postgres.port`, `postgres.database`,
+   `postgres.username` (из них собираются `DB_URL` и `DB_USERNAME`). Пока они пусты, чарт не рисуется и называет первое
+   пустое значение (`postgres.host is empty: …`); скрипт проверяет это до сборки образа.
+2. Secret `contract-service-secret`, его создают один раз вручную. Шаблона Secret в чарте нет: всё, что рисует чарт,
+   Helm хранит в истории релизов, а пароли и ключи там быть не должны. Без Secret скрипт печатает команду и
+   останавливается:
+
+   ```shell
+   kubectl -n rvl-test create secret generic contract-service-secret \
+     --from-literal=DB_PASSWORD='...' \
+     --from-literal=RABBITMQ_INTERNAL_PASSWORD='...' \
+     --from-literal=RABBITMQ_ONEC_PASSWORD='...' \
+     --from-literal=S3_ACCESS_KEY='...' --from-literal=S3_SECRET_KEY='...'
+   ```
+
+   `RABBITMQ_INTERNAL_PASSWORD` — любая непустая строка, пока межсервисного брокера нет (ниже). Смена Secret под сам не
+   перезапускает: `kubectl -n rvl-test rollout restart deploy/contract-service`. Смена значений в ConfigMap
+   перезапускает его сама (аннотация `checksum/config`).
+3. В `certs/` кладутся сертификат корпоративного центра (`.crt`, `.cer` или `.pem`: без него Gradle внутри образа не
+   доверяет Nexus) и сертификат центра сертификации брокера 1С:УСК. Сервис доверяет брокерам по хранилищу JVM, а не по
+   набору SSL Spring (`BrokerConnectionFactories`; переменных `SPRING_RABBITMQ_SSL_BUNDLE` и тома с сертификатом, как у
+   сервиса справочных данных, здесь нет), и `certs/import-ca.sh` добавляет файлы из `certs/` в хранилище образа при
+   сборке. Тот же сертификат уже лежит на стенде в ConfigMap `rabbitmq-ca` (ключ `ca.pem`), который создан для сервиса
+   справочных данных:
+
+   ```shell
+   kubectl -n rvl-test get configmap rabbitmq-ca -o jsonpath='{.data.ca\.pem}' > certs/onec-broker-ca.pem
+   ```
+
+   Без него соединение с брокером 1С:УСК не устанавливается (`onecBroker` в `DOWN`).
+
+На машину стенда копируется весь каталог модуля, а не только jar: jar собирается внутри образа (`JAR_SOURCE=build`).
+Базовые образы и дистрибутив Gradle скрипт берёт из реестра и зеркала Nexus (`IMAGE_REGISTRY`, `GRADLE_MIRROR`; отдельный
+образ или архив — `JDK_IMAGE`, `JRE_IMAGE`, `GRADLE_DISTRIBUTION_URL`), зависимости — из Nexus
+(`PUBLIC_REPOSITORIES=false`). Тег каждый раз новый: с прежним тегом под не пересоздаётся, и скрипт откажется собирать.
+До сборки скрипт проверяет исходники и `certs/import-ca.sh`, сертификат в `certs/`, исполняемый `gradlew`, переводы строк
+LF, доступ `helm` к кластеру, наличие Secret и то, что чарт рисуется.
+
+**Значения стенда** (`values.yaml`; чарт превращает их в переменные окружения из раздела «Переменные окружения» и три стандартных — `SERVER_PORT`, `LOGGING_LEVEL_ROOT` Spring Boot и `JDK_JAVA_OPTIONS` JVM):
+
+| Что | Значение на стенде |
+|---|---|
+| Реплик | `REPLICA` 1, `STRATEGY` `RollingUpdate`, `MAX_SURGE` 1, `MAX_UNAVAILABLE` 0 |
+| Пробы | готовность `/readyz`, живость `/livez`, оба на порту 8080; от брокеров, базы и роли ведущего они не зависят |
+| Остановка | `PRE_STOP_DELAY` 10 с, `TERMINATION_GRACE_PERIOD` 60 с: пауза, остановка сервиса (30 с, `spring.lifecycle.timeout-per-shutdown-phase`) и запас |
+| Метрики | аннотации Prometheus на порт 8081, `/actuator/prometheus` |
+| Брокер 1С:УСК | `s00-0000-rt14.sogaz.ru:5671`, virtual host `/`, пользователь `rvl-online`, TLS, проверка сертификата и имени хоста включены |
+| Справочный сервис | `REFERENCE_URL=http://data-reference:8080/internal/v1`: внутри кластера, тот же namespace; базовый путь `/internal/v1` обязателен, без него запросы справочника уходят на несуществующие адреса |
+| S3 | `S3_ENDPOINT=http://s00-0000-s301:9000` (без TLS), `S3_BUCKET=00-0000-edo-bucket`, `S3_REGION=us-east-1`; `S3_INN` и `S3_KPP` не заданы, ключ объекта собирается с заглушками из `application.yml` |
+| Оплата | `PAYMENT_ENABLED=false` (ровно `false`); Ordering и брокер маркетинга не настраиваются |
+| JVM | `-XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError` через `JDK_JAVA_OPTIONS`, память пода 512 МиБ — 1 ГиБ, процессор 100 мс — 1 ядро; каждая одновременная загрузка справки держит в памяти до 10 МБ, для нагрузочной проверки загрузок лимит памяти поднимают |
+
+**Выкатка без простоя.** Новый под поднимается рядом со старым (`MAX_SURGE` 1), старый гасится, когда новый прошёл
+проверку готовности (`MAX_UNAVAILABLE` 0), и на время выкатки работают два экземпляра. Синхронные вызовы отвечает каждый
+из них. Фоновую работу ведёт один ведущий (строка `leader_lock`): новый экземпляр остаётся неведущим, пока старый не
+отпустит роль. При плавной остановке старый отпускает её сам после паузы `PRE_STOP_DELAY`, и новый берёт роль за
+одно-два сердцебиения; если старый убит без остановки, роль переходит через `LEADER_LOCK_TTL` (30 с). Готовность нового
+пода от роли не зависит, поэтому до остановки старого он готовым становится сразу. Скрипт ждёт конца выкатки
+(`kubectl rollout status`) 10 минут: первая проверка готовности наступает через `R_INIT_DELAY` (60 с).
+
+**Что на стенде не работает.**
+
+- Межсервисного брокера (между сервисами Договоров и Заявок) пока нет. Слушатель выключен
+  (`RABBITMQ_INTERNAL_LISTENER_AUTO_STARTUP=false`), а хост, порт, пользователь и пароль нужны сервису непустыми для
+  старта (`BrokerConnectionProperties`): хост, порт и пользователь берутся из умолчаний `application.yml`
+  (`localhost`, `5674`, `contract_service`), пароль — заглушка из Secret. Соединения никто не слушает, и компонент
+  здоровья `internalBroker` в `DOWN`, а `/actuator/health` отвечает 503; пробы `/readyz` и `/livez` от этого не
+  зависят.
+- Задачи на выпуск от сервиса Заявок на стенд не приходят, поэтому на корректный запрос ручки по заявке отвечают
+  404 `REQUEST_NOT_FOUND` по любой заявке, а акцепт оферты — 404 `CONTRACT_NOT_FOUND`: договоров на стенде нет. Проверить работу этих ручек на стенде можно,
+  только когда появится брокер и задачи.
+- Оплата выключена: заказы и счета не создаются, брокер маркетинга и Ordering не используются
+  (`marketingBroker` в `/actuator/health` нет).
+- Справки пишутся в S3 без TLS и с заглушками ИНН и КПП в ключе объекта; их на стенде не меняют, пока не задан
+  настоящий ИНН и КПП организации.
+
+**Ingress** публикует снаружи `https://s00-0000-rvl8.sogaz.ru/contract-service/internal/v1/requests…` и
+`…/internal/v1/contracts…` (класс `nginx`, TLS-секрет `hr-activity-tls`, тот же хост, что у сервиса справочных данных,
+путь у каждого сервиса свой). Предел тела запроса `ingress.proxyBodySize` — 10 МБ, как предел запроса сервиса
+(`spring.servlet.multipart.max-request-size`): значение по умолчанию у ingress-nginx, 1 МБ, справку не пропустило бы.
+Своей авторизации у ручек нет, поэтому снаружи их вызовет любой, у кого есть доступ к ingress стенда; сервис Заявок
+обращается к сервису внутри кластера по адресу `http://contract-service:8080`, ingress ему не нужен.
+
+Образы старых тегов и кэш сборки сами не удаляются: `sudo nerdctl rmi contract-service:<тег>` и
+`sudo nerdctl builder prune`.
+
 ## Метрики и оповещения
 
 Метрики отдаёт `/actuator/prometheus` на порту актуатора. Пороги ниже — предложение, на контуре их настраивают. Что

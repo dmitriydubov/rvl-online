@@ -1,0 +1,82 @@
+namespace: rvl-test
+
+REGISTRY_URL: ""
+TAG: v1
+IMAGE_PULL_POLICY: IfNotPresent
+
+RESTART_POLICY: Always
+REPLICA: 1
+STRATEGY: RollingUpdate
+MAX_SURGE: 1
+MAX_UNAVAILABLE: 0
+PRE_STOP_DELAY: 10
+TERMINATION_GRACE_PERIOD: 60
+
+R_INIT_DELAY: 60
+R_PERIOD: 10
+L_INIT_DELAY: 120
+L_PERIOD: 30
+
+app:
+  name: contract-service
+  image: contract-service
+  port: 8080
+  managementPort: 8081
+
+service:
+  type: ClusterIP
+
+postgres:
+  host: ""
+  port: ""
+  database: ""
+  username: ""
+
+rabbitmq:
+  internal:
+    listenerAutoStartup: false
+  onec:
+    host: s00-0000-rt14.sogaz.ru
+    port: 5671
+    virtualHost: /
+    username: rvl-online
+    ssl:
+      enabled: true
+      validateCertificate: true
+      verifyHostname: true
+
+reference:
+  url: http://data-reference:8080/internal/v1
+
+s3:
+  endpoint: http://s00-0000-s301:9000
+  region: us-east-1
+  bucket: 00-0000-edo-bucket
+
+payment:
+  enabled: false
+
+logging:
+  root: INFO
+
+jvm:
+  options: "-XX:MaxRAMPercentage=60.0 -XX:+ExitOnOutOfMemoryError"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  path: /contract-service
+  host: "s00-0000-rvl8.sogaz.ru"
+  tlsSecretName: "hr-activity-tls"
+  proxyBodySize: 10m
+  resources:
+    - internal/v1/requests
+    - internal/v1/contracts

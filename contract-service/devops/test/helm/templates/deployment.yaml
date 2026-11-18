@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.app.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name }}
+  replicas: {{ .Values.REPLICA }}
+  strategy:
+    type: {{ .Values.STRATEGY }}
+    {{- if eq .Values.STRATEGY "RollingUpdate" }}
+    rollingUpdate:
+      maxSurge: {{ .Values.MAX_SURGE }}
+      maxUnavailable: {{ .Values.MAX_UNAVAILABLE }}
+    {{- end }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "{{ .Values.app.managementPort }}"
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.TERMINATION_GRACE_PERIOD }}
+      containers:
+        - name: {{ .Values.app.name }}
+          image: "{{ if .Values.REGISTRY_URL }}{{ .Values.REGISTRY_URL }}/{{ end }}{{ .Values.app.image }}:{{ .Values.TAG }}"
+          imagePullPolicy: {{ .Values.IMAGE_PULL_POLICY }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+            - name: management
+              containerPort: {{ .Values.app.managementPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.app.name }}-config
+            - secretRef:
+                name: {{ .Values.app.name }}-secret
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "{{ .Values.PRE_STOP_DELAY }}"]
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.app.port }}
+            initialDelaySeconds: {{ .Values.R_INIT_DELAY }}
+            periodSeconds: {{ .Values.R_PERIOD }}
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: {{ .Values.app.port }}
+            initialDelaySeconds: {{ .Values.L_INIT_DELAY }}
+            periodSeconds: {{ .Values.L_PERIOD }}
+            failureThreshold: 3
+      restartPolicy: {{ .Values.RESTART_POLICY }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.app.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.app.name }}
+    metrics: enabled
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.app.port }}
+      targetPort: {{ .Values.app.port }}
+      protocol: TCP
+  selector:
+    app: {{ .Values.app.name }}
