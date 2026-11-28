@@ -27,4 +27,7 @@ public interface ContractRepository extends JpaRepository<Contract, UUID>, Issua
             @Param("error") ContractStatus error, @Param("cancelled") ContractStatus cancelled);
 
     List<Contract> findByRequestIndividualRequestId(UUID individualRequestId);
+
+    List<Contract> findByRequestIndividualRequestIdAndInsuredParticipantId(UUID individualRequestId,
+            UUID insuredParticipantId);
 }

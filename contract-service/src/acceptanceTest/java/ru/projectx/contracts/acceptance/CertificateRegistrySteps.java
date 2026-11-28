@@ -19,6 +19,10 @@ public class CertificateRegistrySteps {
     private static final String UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
     private static final String KEY_COLUMN = "ключ объекта";
     private static final String CREATED_COLUMN = "создана";
+    private static final String DELETED_COLUMN = "удалена";
+    private static final String DELETED_REQUEST_COLUMN = "запрос удаления";
+    private static final String NONE = "нет";
+    private static final String FROM_ANSWER = "из ответа";
     private static final Map<String, Function<CertificateRecords.Certificate, String>> COLUMNS = Map.of(
             "вложение", certificate -> certificate.attachment().toString(),
             "doc_type", CertificateRecords.Certificate::docType,
@@ -28,10 +32,12 @@ public class CertificateRegistrySteps {
 
     private final CertificateRecords records;
     private final StandClock clock;
+    private final AttachmentCalls calls;
 
-    public CertificateRegistrySteps(CertificateRecords records, StandClock clock) {
+    public CertificateRegistrySteps(CertificateRecords records, StandClock clock, AttachmentCalls calls) {
         this.records = records;
         this.clock = clock;
+        this.calls = calls;
     }
 
     @Дано("вложение {string} в реестре документов помечено удалённым")
@@ -63,8 +69,14 @@ public class CertificateRegistrySteps {
                 .as("согласия родственника %s", familyMember).isEmpty();
     }
 
-    private static void assertRecords(String description, List<CertificateRecords.Certificate> stored,
-            DataTable expected) {
+    @Тогда("в реестре документов запись по вложению {string} сохранила удалена {string} и запрос удаления {string}")
+    public void deletionRequisitesKept(String attachment, String deletedAt, String deletedRequestId) {
+        CertificateRecords.Certificate stored = records.byAttachment(attachment);
+        assertDeletedAt(stored, deletedAt);
+        assertDeletedRequest(stored, deletedRequestId);
+    }
+
+    private void assertRecords(String description, List<CertificateRecords.Certificate> stored, DataTable expected) {
         List<Map<String, String>> rows = expected.asMaps();
         assertThat(stored).as(description).hasSize(rows.size());
         for (int index = 0; index < rows.size(); index++) {
@@ -76,23 +88,43 @@ public class CertificateRegistrySteps {
         return Pattern.quote(expected).replace(ANY_UUID, "\\E" + UUID_PATTERN + "\\Q");
     }
 
-    private static void matches(CertificateRecords.Certificate certificate, Map<String, String> row) {
+    private void matches(CertificateRecords.Certificate certificate, Map<String, String> row) {
         for (Map.Entry<String, String> cell : row.entrySet()) {
-            matches(certificate, cell.getKey(), cell.getValue());
+            matchesCell(certificate, cell.getKey(), cell.getValue());
         }
     }
 
-    private static void matches(CertificateRecords.Certificate certificate, String column, String expected) {
-        if (KEY_COLUMN.equals(column)) {
-            assertThat(certificate.key()).as("ключ объекта").matches(keyPattern(expected));
+    private void matchesCell(CertificateRecords.Certificate certificate, String column, String expected) {
+        switch (column) {
+            case KEY_COLUMN -> assertThat(certificate.key()).as("ключ объекта").matches(keyPattern(expected));
+            case CREATED_COLUMN -> assertThat(certificate.createdAt()).as("момент записи")
+                    .isEqualTo(OffsetDateTime.parse(expected).toInstant());
+            case DELETED_COLUMN -> assertDeletedAt(certificate, expected);
+            case DELETED_REQUEST_COLUMN -> assertDeletedRequest(certificate, expected);
+            default -> {
+                Function<CertificateRecords.Certificate, String> value = Optional.ofNullable(COLUMNS.get(column))
+                        .orElseThrow(() -> new AssertionError("столбца «" + column + "» нет в словаре шага"));
+                assertThat(value.apply(certificate)).as("столбец %s", column).isEqualTo(expected);
+            }
+        }
+    }
+
+    private static void assertDeletedAt(CertificateRecords.Certificate certificate, String expected) {
+        if (NONE.equals(expected)) {
+            assertThat(certificate.deletedAt()).as("удалена").isNull();
             return;
         }
-        if (CREATED_COLUMN.equals(column)) {
-            assertThat(certificate.createdAt()).as("момент записи").isEqualTo(OffsetDateTime.parse(expected).toInstant());
+        assertThat(certificate.deletedAt()).as("удалена").isEqualTo(OffsetDateTime.parse(expected).toInstant());
+    }
+
+    private void assertDeletedRequest(CertificateRecords.Certificate certificate, String expected) {
+        if (NONE.equals(expected)) {
+            assertThat(certificate.deletedRequestId()).as("запрос удаления").isNull();
             return;
         }
-        Function<CertificateRecords.Certificate, String> value = Optional.ofNullable(COLUMNS.get(column))
-                .orElseThrow(() -> new AssertionError("столбца «" + column + "» нет в словаре шага"));
-        assertThat(value.apply(certificate)).as("столбец %s", column).isEqualTo(expected);
+        String resolved = FROM_ANSWER.equals(expected)
+                ? calls.last().requestId().orElseThrow(() -> new AssertionError("в ответе нет заголовка X-Request-Id"))
+                : expected;
+        assertThat(certificate.deletedRequestId()).as("запрос удаления").isEqualTo(resolved);
     }
 }

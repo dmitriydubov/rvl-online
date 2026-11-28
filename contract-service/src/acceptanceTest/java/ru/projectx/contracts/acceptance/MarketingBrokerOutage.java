@@ -9,6 +9,7 @@ import org.awaitility.Awaitility;
 import org.springframework.stereotype.Component;
 import org.testcontainers.containers.Container;
 import org.testcontainers.rabbitmq.RabbitMQContainer;
+import ru.projectx.contracts.config.broker.MarketingBrokerProperties;
 
 @Component
 public class MarketingBrokerOutage {
@@ -19,23 +20,32 @@ public class MarketingBrokerOutage {
     private static final Duration PATIENCE = Duration.ofSeconds(30);
 
     private final RabbitMQContainer broker;
+    private final String orderEventsQueue;
+    private final ConsumedQueues consumers;
     private volatile boolean unavailable;
 
-    public MarketingBrokerOutage(RabbitMQContainer broker) {
+    public MarketingBrokerOutage(RabbitMQContainer broker, MarketingBrokerProperties properties,
+            ConsumedQueues consumers) {
         this.broker = broker;
+        this.orderEventsQueue = properties.orderEvents().queue();
+        this.consumers = consumers;
     }
 
     void start() {
         unavailable = true;
         control("set_vhost_limits", "-p", VIRTUAL_HOST, NO_CONNECTIONS);
         control("close_all_connections", "-p", VIRTUAL_HOST, EXPLANATION);
-        Awaitility.await().atMost(PATIENCE).untilAsserted(() ->
-                assertThat(openConnections()).as("соединения с vhost %s", VIRTUAL_HOST).isZero());
+        Awaitility.await().atMost(PATIENCE).untilAsserted(() -> {
+            assertThat(openConnections()).as("соединения с vhost %s", VIRTUAL_HOST).isZero();
+            assertThat(consumers.unsubscribedOrStopped(orderEventsQueue))
+                    .as("подписка очереди %s снята", orderEventsQueue).isTrue();
+        });
     }
 
     void end() {
         if (unavailable) {
             control("clear_vhost_limits", "-p", VIRTUAL_HOST);
+            consumers.awaitSubscribedOrStopped();
             unavailable = false;
         }
     }

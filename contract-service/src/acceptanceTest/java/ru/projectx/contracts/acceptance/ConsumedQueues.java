@@ -57,8 +57,17 @@ public class ConsumedQueues {
         });
     }
 
+    boolean unsubscribedOrStopped(String queue) {
+        return !running(queue) || !subscriptions.subscribed(queue);
+    }
+
     private boolean everyRunningContainerSubscribedOrStopped() {
         return containers.getListenerContainerIds().stream()
-                .allMatch(queue -> !containers.getListenerContainer(queue).isRunning() || subscriptions.subscribed(queue));
+                .allMatch(queue -> !running(queue) || subscriptions.subscribed(queue));
+    }
+
+    private boolean running(String queue) {
+        MessageListenerContainer container = containers.getListenerContainer(queue);
+        return container != null && container.isRunning();
     }
 }

@@ -2,7 +2,6 @@ package ru.projectx.contracts.acceptance;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ch.qos.logback.classic.spi.ILoggingEvent;
 import io.cucumber.datatable.DataTable;
 import io.cucumber.java.ru.Тогда;
 import java.time.OffsetDateTime;
@@ -17,7 +16,6 @@ public class InternalApiSteps {
     private static final String PRESENT = "есть";
     private static final Pattern SAME_AS = Pattern.compile("как в ответе №(\\d+)");
     private static final String CREATED_AT = "created_at";
-    private static final String REQUEST_ID_KEY = "requestId";
 
     private final AttachmentCalls calls;
     private final ServiceJournal journal;
@@ -88,11 +86,7 @@ public class InternalApiSteps {
 
     @Тогда("в журнале Договоров есть запись о вызове с requestId {string} и кодом ответа {int}")
     public void callJournaled(String requestId, int status) {
-        assertThat(journal.events()).as("записи журнала о вызове с requestId %s", requestId)
-                .filteredOn(event -> requestId.equals(event.getMDCPropertyMap().get(REQUEST_ID_KEY)))
-                .extracting(ILoggingEvent::getFormattedMessage)
-                .anyMatch(message -> message.startsWith("синхронный вызов POST ")
-                        && message.endsWith(" завершён с кодом " + status));
+        SyncCallLogAssertions.assertLogged(journal, "POST", requestId, status);
     }
 
     private void assertField(JsonNode body, String name, String expected) {

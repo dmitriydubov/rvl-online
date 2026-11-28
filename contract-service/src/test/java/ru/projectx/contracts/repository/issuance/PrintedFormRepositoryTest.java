@@ -128,6 +128,32 @@ class PrintedFormRepositoryTest {
     }
 
     @Test
+    void markDeletedByAttachmentId_marksActiveRowOnceClearsPersistenceContextAndIgnoresRepeatOrUnknown() {
+        Instant deletedAt = NOW.plusSeconds(10);
+        documents.saveAndFlush(PrintedForm.receivedAttachment(PrintedFormType.MEDICAL_CERTIFICATE, CERT_OWNER, FILE, NOW));
+
+        transaction.executeWithoutResult(status -> {
+            assertThat(documents.findByAttachmentAttachmentId(ATTACHMENT)).isPresent();
+            assertThat(documents.existsByAttachmentAttachmentIdAndAttachmentDeletedAtIsNull(ATTACHMENT)).isTrue();
+            assertThat(documents.markDeletedByAttachmentId(ATTACHMENT, deletedAt, "req-first")).isEqualTo(1);
+            assertThat(documents.existsByAttachmentAttachmentIdAndAttachmentDeletedAtIsNull(ATTACHMENT)).isFalse();
+            DocumentAttachment cleared = documents.findByAttachmentAttachmentId(ATTACHMENT).orElseThrow()
+                    .attachment().orElseThrow();
+            assertThat(cleared.deletedAt()).isEqualTo(deletedAt);
+            assertThat(cleared.deletedRequestId()).isEqualTo("req-first");
+            assertThat(documents.markDeletedByAttachmentId(ATTACHMENT, NOW.plusSeconds(99), "req-second")).isZero();
+            assertThat(documents.markDeletedByAttachmentId(UUID.randomUUID(), deletedAt, "req-missing")).isZero();
+            assertThat(documents.existsByAttachmentAttachmentIdAndAttachmentDeletedAtIsNull(UUID.randomUUID()))
+                    .isFalse();
+        });
+
+        DocumentAttachment afterRepeat = documents.findByAttachmentAttachmentId(ATTACHMENT).orElseThrow()
+                .attachment().orElseThrow();
+        assertThat(afterRepeat.deletedAt()).isEqualTo(deletedAt);
+        assertThat(afterRepeat.deletedRequestId()).isEqualTo("req-first");
+    }
+
+    @Test
     void secondRecordOfTheSameAttachmentEvenAcrossKinds_isRefusedByTheDatabase() {
         documents.saveAndFlush(PrintedForm.receivedAttachment(PrintedFormType.MEDICAL_CERTIFICATE, CERT_OWNER, FILE, NOW));
         DocumentAttachment sameIdConsent = DocumentAttachments.consent(POLICY, FAMILY_MEMBER, ATTACHMENT);

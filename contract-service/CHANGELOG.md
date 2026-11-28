@@ -24,8 +24,21 @@
 - Миграция схемы `015-attachments.yaml`: значение перечисления `PD_CONSENT`, снятие внешнего ключа
   `fk_contract_documents_request`, колонки `policy_id`, `family_member_id`, `deleted_at` и `deleted_request_id`,
   ограничения целостности владельца и мягкого удаления, индекс `ix_contract_documents_consent`.
-- Маршрут `internal/v1/policies` в `devops/test/helm/values.yaml` для вызова загрузки согласий через ingress тестового
-  стенда k3s.
+- Потоковая выдача содержимого активного вложения `GET /internal/v1/attachments/{attachment_id}/content` (медицинские
+  справки 070/у и согласия на обработку ПДн): ответ `200 OK` потоком байтов из S3 вне транзакции базы данных и без
+  буферизации файла в куче, с заголовками `Content-Type`, `Content-Length` и `ETag` в двойных кавычках (поддержка
+  `If-None-Match` → `304 Not Modified` с закрытием потока S3); неизвестные идентификаторы, печатные формы 1С:УСК и мягко
+  удалённые записи отвечают `404 ATTACHMENT_NOT_FOUND` без обращения к S3, отсутствие объекта в живом бакете отвечает
+  `404 ATTACHMENT_NOT_FOUND` с записью `WARN` без ключа объекта и персональных данных, недоступность S3 или отсутствие
+  бакета — `503 STORAGE_UNAVAILABLE`.
+- Двухфазное мягкое удаление вложений `DELETE /internal/v1/attachments/{attachment_id}` без удержания транзакции базы во
+  время вызова S3: идемпотентный ответ `204 No Content` с пустым телом для отсутствующих, печатных и уже удалённых
+  записей без обращения к S3 и без перезаписи первичных `deleted_at` и `deleted_request_id`; физическое удаление объекта
+  в S3 перед атомарной отметкой в `contract_documents`; блокировка `409 ATTACHMENT_LOCKED` при удалении медицинской
+  справки, если по паре заявки и участника есть договор КМ в `SUBMITTED` или `ISSUED` либо запись `KmContractSubmitted` в
+  `outbox_messages`; `503 SERVICE_UNAVAILABLE` при занятой дольше `DB_LOCK_TIMEOUT` строке договора КМ.
+- Маршруты `internal/v1/policies` и `internal/v1/attachments` в `devops/test/helm/values.yaml` для вызова загрузки
+  согласий, скачивания содержимого и удаления вложений через ingress тестового стенда k3s.
 
 ### Изменено
 
@@ -57,7 +70,9 @@
 
 - При ручном переносе исходников в рабочий контур удалить снятые классы
   `src/main/java/ru/projectx/contracts/entity/document/ParticipantAttachment.java` и
-  `src/main/java/ru/projectx/contracts/exception/ParticipantNotFoundException.java`. Миграция `015-attachments.yaml`
+  `src/main/java/ru/projectx/contracts/exception/ParticipantNotFoundException.java`. Учётной записи сервиса в хранилище
+  S3 (`S3_ACCESS_KEY`) на бакете `S3_BUCKET` нужны права чтения содержимого объектов (`GetObject`) и удаления объектов
+  (`DeleteObject`) в дополнение к записи, чтению метаданных и проверке бакета. Миграция `015-attachments.yaml`
   выполняется Liquibase при старте автоматически, новых зависимостей и переменных окружения нет.
 
 ## [1.0.0-rc.1] - 2026-11-25

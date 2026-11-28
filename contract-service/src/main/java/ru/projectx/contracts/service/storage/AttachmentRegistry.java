@@ -2,11 +2,14 @@ package ru.projectx.contracts.service.storage;
 
 import java.time.Clock;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import ru.projectx.contracts.entity.document.DocumentAttachments;
 import ru.projectx.contracts.entity.document.PrintedForm;
 import ru.projectx.contracts.entity.document.StoredFile;
 import ru.projectx.contracts.exception.AttachmentConflictException;
+import ru.projectx.contracts.exception.AttachmentNotFoundException;
 import ru.projectx.contracts.repository.issuance.IssuanceRequestRepository;
 import ru.projectx.contracts.repository.issuance.PrintedFormRepository;
 
@@ -28,6 +31,15 @@ public class AttachmentRegistry {
         target.checkOpen(requests);
         return documents.findByAttachmentAttachmentId(target.attachmentId())
                 .map(existing -> sameUpload(existing, target, fileHash));
+    }
+
+    @Transactional(readOnly = true)
+    public StoredFile activeFile(UUID attachmentId) {
+        PrintedForm document = documents.findByAttachmentAttachmentId(attachmentId)
+                .filter(existing -> existing.attachment().filter(DocumentAttachments::hasActiveAttachmentId).isPresent())
+                .orElseThrow(() -> new AttachmentNotFoundException(attachmentId));
+        return document.storedFile().orElseThrow(
+                () -> new IllegalStateException("у вложения " + document.id() + " нет файла"));
     }
 
     @Transactional

@@ -122,6 +122,32 @@ class OutboxMessageRepositoryTest {
                 .containsExactlyInAnyOrder(UUID.fromString(THIRD), UUID.fromString(FOURTH));
     }
 
+    @Test
+    void existsByCorrelationAggregateAndEventType_matchesAllStatusesEvenAfterPayloadErasure() {
+        UUID firstContract = UUID.randomUUID();
+        UUID secondContract = UUID.randomUUID();
+        UUID unsubmittedContract = UUID.randomUUID();
+        transaction.executeWithoutResult(status -> {
+            messages.save(contractSubmission(FIRST, REQUEST, firstContract, NOW.minusSeconds(10))).markPublished(NOW);
+            messages.save(contractSubmission(SECOND, REQUEST, secondContract, NOW.minusSeconds(10))).markFailed("NO_ROUTE");
+            messages.save(message(THIRD, STATUS_CHANGE, NOW));
+            messages.eraseFinishedPayloadsCreatedBefore(NOW, 10);
+        });
+
+        assertThat(messages.existsByCorrelationIdAndAggregateTypeAndAggregateIdInAndEventType(
+                REQUEST, "CONTRACT", List.of(firstContract), "KmContractSubmitted")).isTrue();
+        assertThat(messages.existsByCorrelationIdAndAggregateTypeAndAggregateIdInAndEventType(
+                REQUEST, "CONTRACT", List.of(unsubmittedContract, secondContract), "KmContractSubmitted")).isTrue();
+        assertThat(messages.existsByCorrelationIdAndAggregateTypeAndAggregateIdInAndEventType(
+                REQUEST, "CONTRACT", List.of(unsubmittedContract), "KmContractSubmitted")).isFalse();
+        assertThat(messages.existsByCorrelationIdAndAggregateTypeAndAggregateIdInAndEventType(
+                UUID.randomUUID(), "CONTRACT", List.of(firstContract), "KmContractSubmitted")).isFalse();
+        assertThat(messages.existsByCorrelationIdAndAggregateTypeAndAggregateIdInAndEventType(
+                REQUEST, "LM_POLICY", List.of(firstContract), "KmContractSubmitted")).isFalse();
+        assertThat(messages.existsByCorrelationIdAndAggregateTypeAndAggregateIdInAndEventType(
+                REQUEST, "CONTRACT", List.of(firstContract), STATUS_CHANGE)).isFalse();
+    }
+
     private List<String> dueOf(Set<String> eventTypes, int limit) {
         return ids(messages.findDueOf(eventTypes, NOW, Limit.of(limit)));
     }
@@ -142,5 +168,11 @@ class OutboxMessageRepositoryTest {
         return OutboxMessage.compose(new OutboxDraft("INDIVIDUAL_REQUEST", REQUEST,
                 new MessageEnvelope(UUID.fromString(messageId), REQUEST, "rvl.contract-status.changed",
                         eventType, 1), "{\"data\": {\"n\": 1}}"), createdAt);
+    }
+
+    private static OutboxMessage contractSubmission(String messageId, UUID request, UUID contract, Instant createdAt) {
+        return OutboxMessage.compose(new OutboxDraft("CONTRACT", contract,
+                new MessageEnvelope(UUID.fromString(messageId), request, "rvl.km-contract.submitted",
+                        "KmContractSubmitted", 1), "{\"data\": {}}"), createdAt);
     }
 }

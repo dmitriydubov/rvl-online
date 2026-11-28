@@ -52,8 +52,14 @@ class PrintedFormTest {
         assertThat(consent.docType()).isEqualTo(PrintedFormType.PD_CONSENT);
         assertThat(consent.attachment()).contains(CONSENT);
         assertThat(DocumentAttachments.isActive(CONSENT)).isTrue();
-        assertThat(DocumentAttachments.isActive(new DocumentAttachment(null, null, CONSENT.policyId(),
-                CONSENT.familyMemberId(), CONSENT.attachmentId(), NOW, "req-1"))).isFalse();
+        assertThat(DocumentAttachments.hasActiveAttachmentId(CONSENT)).isTrue();
+        assertThat(DocumentAttachments.hasActiveAttachmentId(
+                new DocumentAttachment(null, null, CONSENT.policyId(), CONSENT.familyMemberId(), null, null, null)))
+                .isFalse();
+        DocumentAttachment deleted = new DocumentAttachment(null, null, CONSENT.policyId(),
+                CONSENT.familyMemberId(), CONSENT.attachmentId(), NOW, "req-1");
+        assertThat(DocumentAttachments.isActive(deleted)).isFalse();
+        assertThat(DocumentAttachments.hasActiveAttachmentId(deleted)).isFalse();
     }
 
     @Test

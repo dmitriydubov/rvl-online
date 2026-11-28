@@ -4,6 +4,7 @@ import io.cucumber.datatable.DataTable;
 import io.cucumber.java.ru.Когда;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -82,8 +83,10 @@ public class AttachmentUploadSteps {
     }
 
     static AttachmentRequest build(String path, Map<String, String> fields, byte[] filler) {
-        byte[] content = Optional.ofNullable(fields.get("содержимое")).map(AttachmentUploadSteps::content)
-                .orElseGet(() -> repeat(filler, Integer.parseInt(required(fields, "размер"))));
+        byte[] content = fields.containsKey("байты в hex")
+                ? HexFormat.of().parseHex(required(fields, "байты в hex"))
+                : Optional.ofNullable(fields.get("содержимое")).map(AttachmentUploadSteps::content)
+                        .orElseGet(() -> repeat(filler, Integer.parseInt(required(fields, "размер"))));
         return new AttachmentRequest(path,
                 Optional.of(new AttachmentRequest.AttachmentPart(required(fields, "вложение"), null)),
                 Optional.of(new AttachmentRequest.FilePart(required(fields, "имя файла"), required(fields, "тип"),
