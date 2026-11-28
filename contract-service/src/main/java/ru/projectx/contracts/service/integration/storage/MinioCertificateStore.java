@@ -1,8 +1,10 @@
 package ru.projectx.contracts.service.integration.storage;
 
 import io.minio.BucketExistsArgs;
+import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import io.minio.StatObjectArgs;
 import io.minio.errors.ErrorResponseException;
 import io.minio.errors.MinioException;
@@ -47,16 +49,40 @@ public class MinioCertificateStore implements CertificateStore {
         try {
             client.statObject(object);
         } catch (ErrorResponseException refused) {
-            throw refusal(refused);
+            throw refusal(refused, "проверке");
         } catch (MinioException | IOException | GeneralSecurityException | RuntimeException failure) {
-            throw unanswered(failure);
+            throw unavailable("хранилище справок не ответило о наличии объекта", failure);
         }
     }
 
-    private RuntimeException refusal(ErrorResponseException refused) {
+    @Override
+    public InputStream openStream(String key) {
+        GetObjectArgs object = GetObjectArgs.builder().bucket(bucket).object(key).build();
+        try {
+            return client.getObject(object);
+        } catch (ErrorResponseException refused) {
+            throw refusal(refused, "чтении");
+        } catch (MinioException | IOException | GeneralSecurityException | RuntimeException failure) {
+            throw unavailable("хранилище справок не отдало объект", failure);
+        }
+    }
+
+    @Override
+    public void remove(String key) {
+        RemoveObjectArgs object = RemoveObjectArgs.builder().bucket(bucket).object(key).build();
+        try {
+            client.removeObject(object);
+        } catch (ErrorResponseException refused) {
+            handleRemovalRefusal(refused);
+        } catch (MinioException | IOException | GeneralSecurityException | RuntimeException failure) {
+            throw unavailable("хранилище справок не удалило объект", failure);
+        }
+    }
+
+    private RuntimeException refusal(ErrorResponseException refused, String action) {
         String code = refused.errorResponse().code();
         if (!NO_SUCH_KEY.equals(code)) {
-            log.warn("хранилище справок отказало в проверке объекта: код {}", code);
+            log.warn("хранилище справок отказало в {} объекта: код {}", action, code);
             return new StorageUnavailableException(refused);
         }
         if (bucketPresent()) {
@@ -66,16 +92,23 @@ public class MinioCertificateStore implements CertificateStore {
         return new StorageUnavailableException(refused);
     }
 
+    private void handleRemovalRefusal(ErrorResponseException refused) {
+        RuntimeException translated = refusal(refused, "удалении");
+        if (!(translated instanceof CertificateMissingException)) {
+            throw translated;
+        }
+    }
+
     private boolean bucketPresent() {
         try {
             return client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
         } catch (MinioException | IOException | GeneralSecurityException | RuntimeException failure) {
-            throw unanswered(failure);
+            throw unavailable("хранилище справок не ответило о наличии объекта", failure);
         }
     }
 
-    private static StorageUnavailableException unanswered(Exception failure) {
-        log.warn("хранилище справок не ответило о наличии объекта: {}", failure.getClass().getName());
+    private static StorageUnavailableException unavailable(String message, Exception failure) {
+        log.warn("{}: {}", message, failure.getClass().getName());
         return new StorageUnavailableException(failure);
     }
 
@@ -88,8 +121,7 @@ public class MinioCertificateStore implements CertificateStore {
             log.warn("хранилище справок отказало в записи объекта: код {}", refused.errorResponse().code());
             throw new StorageUnavailableException(refused);
         } catch (MinioException | IOException | GeneralSecurityException | RuntimeException failure) {
-            log.warn("хранилище справок не записало объект: {}", failure.getClass().getName());
-            throw new StorageUnavailableException(failure);
+            throw unavailable("хранилище справок не записало объект", failure);
         }
     }
 

@@ -167,9 +167,20 @@ class ContractRepositoryTest {
         cancelled.cancel(new Cancellation(CancelReason.OTHER, null, NOW), NOW);
         transaction.executeWithoutResult(status -> contracts.save(cancelled));
 
-        transaction.executeWithoutResult(status -> contracts.save(contract(SPOUSE, "DKM-2026-000002")));
+        Contract reopened = contract(SPOUSE, "DKM-2026-000002");
+        Contract otherParticipant = contract(CHILD, "DKM-2026-000003");
+        IssuanceTerms otherRequestTerms = new IssuanceTerms(new RequestReference(UUID.randomUUID(),
+                REFERENCE.insuranceContractId(), REFERENCE.insurerPolicyId()), INSURED, TERMS.programId(), PERIOD);
+        Contract otherRequest = Contract.open(new ContractDraft("DKM-2026-000004", otherRequestTerms, SPOUSE,
+                new BigDecimal("34000.00")), NOW);
+        otherRequest.cancel(new Cancellation(CancelReason.OTHER, null, NOW), NOW);
+        transaction.executeWithoutResult(status ->
+                contracts.saveAll(java.util.List.of(reopened, otherParticipant, otherRequest)));
 
-        assertThat(contracts.count()).isEqualTo(2);
+        assertThat(contracts.count()).isEqualTo(4);
+        assertThat(contracts.findByRequestIndividualRequestIdAndInsuredParticipantId(REQUEST, SPOUSE))
+                .extracting(Contract::number)
+                .containsExactlyInAnyOrder("DKM-2026-000001", "DKM-2026-000002");
     }
 
     @Test

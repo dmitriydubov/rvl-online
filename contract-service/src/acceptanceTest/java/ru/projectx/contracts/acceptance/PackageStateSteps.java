@@ -2,7 +2,6 @@ package ru.projectx.contracts.acceptance;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ch.qos.logback.classic.spi.ILoggingEvent;
 import io.cucumber.java.ru.Когда;
 import io.cucumber.java.ru.Тогда;
 import java.io.IOException;
@@ -89,11 +88,7 @@ public class PackageStateSteps {
 
     @Тогда("в журнале Договоров есть запись о вызове GET с requestId {string} и кодом ответа {int}")
     public void getJournaledWithRequestId(String requestId, int status) {
-        assertThat(journal.events()).as("записи журнала о вызове с requestId %s", requestId)
-                .filteredOn(event -> requestId.equals(event.getMDCPropertyMap().get("requestId")))
-                .extracting(ILoggingEvent::getFormattedMessage)
-                .anyMatch(message -> message.startsWith("синхронный вызов GET ")
-                        && message.endsWith(" завершён с кодом " + status));
+        SyncCallLogAssertions.assertLogged(journal, "GET", requestId, status);
     }
 
     @Тогда("значение поля {string} сообщения {string} есть в его теле, но не попало в ответ Договоров о состоянии пакета")

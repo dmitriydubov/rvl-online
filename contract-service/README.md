@@ -7,9 +7,8 @@ Java 21, Spring Boot 4.0.7, Liquibase 5.0, PostgreSQL 16, RabbitMQ 4.1, S3 (MinI
 
 ## О сервисе
 
-По задаче Заявок выпускает через 1С:УСК договор КМ на доплату или полис ЛМ родственнику без доплаты,
-принимает справки 070/у и согласия, акцепт оферты и оплату через Ordering, отвечает Заявкам. Фоновую работу ведёт ведущий
-(`leader_lock`).
+По задаче Заявок выпускает через 1С:УСК договор КМ с доплатой или полис ЛМ без неё, хранит, отдаёт и удаляет вложения,
+принимает акцепт и оплату (Ordering), отвечает Заявкам. Фоном правит ведущий (`leader_lock`).
 
 ## Таймауты
 
@@ -27,13 +26,13 @@ Java 21, Spring Boot 4.0.7, Liquibase 5.0, PostgreSQL 16, RabbitMQ 4.1, S3 (MinI
 - Справочник: повторы `REFERENCE_MAX_RETRIES`, задача ждёт; ответ 1С:УСК — лестница `INBOX_RETRY_BACKOFF`, затем
   FAILED.
 - База: приём на паузе (`INBOX_STORAGE_CHECK_INTERVAL`), разбор — по лестнице.
-- Брокер: DOWN у `internalBroker`/`onecBroker`/`marketingBroker` — ждут только его сообщения; нет очереди 1С:УСК —
+- Брокер: DOWN у `internalBroker`/`onecBroker`/`marketingBroker` — ждут его сообщения; нет очереди 1С:УСК —
   ERROR `…_UNDELIVERED`.
-- Ordering, сервер токенов: заказ и счёт ждут, растёт `contracts_ordering_failures_total`.
+- Ordering, токены: заказ и счёт ждут, растёт `contracts_ordering_failures_total`.
 - S3: вложения — 503 `STORAGE_UNAVAILABLE`, передача КМ ждёт.
-- 1С:УСК молчит: запись в SUBMITTED; дольше `…_AWAITING_THRESHOLD` — `contracts_*_awaiting_overdue`.
+- 1С:УСК молчит: SUBMITTED; дольше `…_AWAITING_THRESHOLD` — `contracts_*_awaiting_overdue`.
 - Без соседей: `RABBITMQ_*_LISTENER_AUTO_STARTUP` и `PAYMENT_ENABLED` = `false` (обязательна); акцепт при `false`
-  заказа не получит и после включения. С заказами в работе оплату не выключают.
+  заказа не даст и после включения. С активными заказами оплату не выключают.
 
 ## Сообщения
 
@@ -41,9 +40,9 @@ Java 21, Spring Boot 4.0.7, Liquibase 5.0, PostgreSQL 16, RabbitMQ 4.1, S3 (MinI
 `rvl_contracts_to_1c-usk_*`, `1c-usk_to_rvl_contracts_*` (`*` — `lm-policy-changes`, `km-contract-changes`). Брокер
 маркетинга: `fixed` — `MARKETING_DOCUMENT_FIXES_EXCHANGE`, события — `MARKETING_ORDER_EVENTS_QUEUE`.
 
-REST от Заявок: справка — `POST /requests/{заявка}/participants/{участник}/attachments`, согласие —
-`POST /policies/{полис}/family-members/{родственник}/consents`, пакет — `GET /requests/{заявка}/package`, акцепт —
-`POST /contracts/{договор}/acceptance`.
+REST от Заявок: справка — `POST /requests/{id}/participants/{id}/attachments`, согласие —
+`POST /policies/{id}/family-members/{id}/consents`, файл — `GET /attachments/{id}/content`, удаление —
+`DELETE /attachments/{id}`, пакет — `GET /requests/{id}/package`, акцепт — `POST /contracts/{id}/acceptance`.
 
 ## Диагностика по базе
 

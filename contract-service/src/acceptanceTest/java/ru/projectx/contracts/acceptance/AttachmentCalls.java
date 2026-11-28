@@ -4,6 +4,7 @@ import io.cucumber.spring.ScenarioScope;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +28,8 @@ public class AttachmentCalls {
     private static final String REQUEST_ID = "X-Request-Id";
     private static final int OK = 200;
 
-    record Answer(int status, Optional<String> requestId, Optional<String> sentRequestId, String body) {
+    record Answer(int status, Optional<String> requestId, Optional<String> sentRequestId, HttpHeaders headers,
+            byte[] rawBody, String body) {
     }
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
@@ -46,15 +48,16 @@ public class AttachmentCalls {
                 .header("Content-Type", request.contentType())
                 .POST(HttpRequest.BodyPublishers.ofByteArray(request.body()));
         request.requestId().ifPresent(value -> call.header(REQUEST_ID, value));
-        HttpResponse<String> response = http.send(call.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<byte[]> response = http.send(call.build(), HttpResponse.BodyHandlers.ofByteArray());
+        byte[] raw = response.body();
         answers.add(new Answer(response.statusCode(), response.headers().firstValue(REQUEST_ID), request.requestId(),
-                response.body()));
+                response.headers(), raw, new String(raw, StandardCharsets.UTF_8)));
         remember(request, response.statusCode());
     }
 
     Answer last() {
         if (answers.isEmpty()) {
-            throw new AssertionError("в сценарии ещё не было вызовов загрузки справки");
+            throw new AssertionError("в сценарии ещё не было вызовов вложений");
         }
         return answers.getLast();
     }
@@ -93,15 +96,16 @@ public class AttachmentCalls {
         }));
     }
 
-    void exchange(String method, String path, Optional<String> requestId, Optional<String> json)
+    void exchange(String method, String path, Optional<String> requestId, Optional<String> jsonBody)
             throws IOException, InterruptedException {
         HttpRequest.Builder call = HttpRequest.newBuilder(URI.create(base + path)).timeout(TIMEOUT)
-                .method(method, json.map(body -> HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .method(method, jsonBody.map(body -> HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                         .orElseGet(HttpRequest.BodyPublishers::noBody));
-        json.ifPresent(body -> call.header("Content-Type", "application/json"));
+        jsonBody.ifPresent(body -> call.header("Content-Type", "application/json"));
         requestId.ifPresent(value -> call.header(REQUEST_ID, value));
-        HttpResponse<String> response = http.send(call.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<byte[]> response = http.send(call.build(), HttpResponse.BodyHandlers.ofByteArray());
+        byte[] raw = response.body();
         answers.add(new Answer(response.statusCode(), response.headers().firstValue(REQUEST_ID), requestId,
-                response.body()));
+                response.headers(), raw, new String(raw, StandardCharsets.UTF_8)));
     }
 }

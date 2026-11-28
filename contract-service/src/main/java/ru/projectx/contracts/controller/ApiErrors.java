@@ -2,6 +2,7 @@ package ru.projectx.contracts.controller;
 
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import ru.projectx.contracts.dto.ErrorResponse;
 import ru.projectx.contracts.service.RequestIds;
@@ -33,6 +34,8 @@ final class ApiErrors {
 
     private static ResponseEntity<ErrorResponse> of(HttpStatus status, String code, String message,
             List<ErrorResponse.FieldViolation> details) {
-        return ResponseEntity.status(status).body(ErrorResponse.of(code, message, details, RequestIds.current()));
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(ErrorResponse.of(code, message, details, RequestIds.current()));
     }
 }

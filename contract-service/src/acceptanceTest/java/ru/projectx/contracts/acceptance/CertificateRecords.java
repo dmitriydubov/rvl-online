@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
@@ -14,19 +15,22 @@ import org.springframework.stereotype.Component;
 public class CertificateRecords {
 
     private static final String CERTIFICATES = """
-            select id, attachment_id, doc_type::text as doc_type, content_type, file_size, file_hash, file_key, created_at
+            select id, attachment_id, doc_type::text as doc_type, content_type, file_size, file_hash, file_key,
+                   created_at, deleted_at, deleted_request_id
               from contract_documents
              where individual_request_id = :request and participant_id = :participant
              order by created_at, id
             """;
     private static final String CONSENTS = """
-            select id, attachment_id, doc_type::text as doc_type, content_type, file_size, file_hash, file_key, created_at
+            select id, attachment_id, doc_type::text as doc_type, content_type, file_size, file_hash, file_key,
+                   created_at, deleted_at, deleted_request_id
               from contract_documents
              where policy_id = :policy and family_member_id = :familyMember
              order by created_at, id
             """;
     private static final String BY_ATTACHMENT = """
-            select id, attachment_id, doc_type::text as doc_type, content_type, file_size, file_hash, file_key, created_at
+            select id, attachment_id, doc_type::text as doc_type, content_type, file_size, file_hash, file_key,
+                   created_at, deleted_at, deleted_request_id
               from contract_documents
              where attachment_id = :attachment
             """;
@@ -47,7 +51,7 @@ public class CertificateRecords {
     }
 
     record Certificate(UUID id, UUID attachment, String docType, String contentType, long size, String hash, String key,
-            Instant createdAt) {
+            Instant createdAt, @Nullable Instant deletedAt, @Nullable String deletedRequestId) {
     }
 
     List<Certificate> of(UUID request, UUID participant) {
@@ -85,8 +89,12 @@ public class CertificateRecords {
     }
 
     private Certificate certificate(ResultSet row, int index) throws SQLException {
-        return new Certificate(row.getObject("id", UUID.class), row.getObject("attachment_id", UUID.class), row.getString("doc_type"),
-                row.getString("content_type"), row.getLong("file_size"), row.getString("file_hash"),
-                row.getString("file_key"), row.getObject("created_at", OffsetDateTime.class).toInstant());
+        OffsetDateTime deletedAt = row.getObject("deleted_at", OffsetDateTime.class);
+        return new Certificate(row.getObject("id", UUID.class), row.getObject("attachment_id", UUID.class),
+                row.getString("doc_type"), row.getString("content_type"), row.getLong("file_size"),
+                row.getString("file_hash"), row.getString("file_key"),
+                row.getObject("created_at", OffsetDateTime.class).toInstant(),
+                deletedAt == null ? null : deletedAt.toInstant(),
+                row.getString("deleted_request_id"));
     }
 }

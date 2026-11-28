@@ -81,3 +81,4 @@ ingress:
     - internal/v1/requests
     - internal/v1/contracts
     - internal/v1/policies
+    - internal/v1/attachments

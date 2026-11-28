@@ -18,4 +18,8 @@ public final class DocumentAttachments {
     public static boolean isActive(DocumentAttachment attachment) {
         return attachment.deletedAt() == null;
     }
+
+    public static boolean hasActiveAttachmentId(DocumentAttachment attachment) {
+        return attachment.attachmentId() != null && isActive(attachment);
+    }
 }
